@@ -34,7 +34,7 @@ use Aion;
 with 'Aion::Sige';
 
 has caption => (is => 'ro', isa => Maybe[Str]);
-has list => (is => 'ro', isa => ArrayRef[Dict[Int, Str]]);
+has list => (is => 'ro', isa => ArrayRef[Tuple[Int, Str]]);
 
 1;
 __DATA__
@@ -42,7 +42,7 @@ __DATA__
 
 <ul>
     <li>first
-    <li for="element in list" class="piase{{ element[0] }}">{{ element[1] }}
+    <li for='element in list' class="piase{{ element[0] }}">{{ element[1] }}
 </ul>
 ```
 
