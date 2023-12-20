@@ -66,18 +66,49 @@ sub _compile_sige {
             my ($tag, $attrs) = @+{qw/tag attrs/};
 
             my @attrs;
+            my $if;
+            my $for;
 
             while($attrs =~ m{ $RE_ATTR }xngo) {
                 my ($space, $attr) = @+{qw/space attr/};
 
-                push @attrs, "$space$attr=', ", $exp->($+{onequote}), ", '" when exists $+{onequote};
-                push @attrs, "$space$+{attr}=', do {", $exp->($+{noquote}), "}, '" when exists $+{noquote};
-                push @attrs, "$space$+{attr}=\"", $text->($+{dblquote}), "\"" when exists $+{dblquote};
-                push @attrs, "$space', do {", $exp->($+{ins}), "}, '" when exists $+{ins};
+                if($attr eq "if") {
+                    die "The if attribute is already present in the <$tag>" if defined $if;
+
+                    $if = $+{onequote} // $+{noquote} // $+{dblquote};
+                }
+                if($attr eq "for") {
+                    die "The for attribute is already present in the <$tag>" if defined $for;
+
+                    die "The if-attribute must be placed after for-attribute in the <$tag>" if defined $if;
+
+                    $for = $+{onequote} // $+{noquote} // $+{dblquote};
+                }
+                elsif(defined(my $x = $+{onequote} // $+{noquote})) {
+                    push @attrs, "', do { my \$r = do {", $exp->($x), "}; defined(\$r)? ('$space$attr=\"', \$r, '\"): () }";
+                }
+                elsif(exists $+{dblquote}) {
+                    push @attrs, "$space$+{attr}=\"", $text->($+{dblquote}), "\"";
+                }
+                elsif(exists $+{ins}) {
+                    push @attrs, "$space', do {", $exp->($+{ins}), "}, '"
+                }
+                else { die "?" }
             }
 
             my $atag = "<tag@attrs>";
-            in_tag @S, $tag, $atag;
+            my $stash;
+            # Вначале if, чтобы если есть и for - построить в for if
+            if($if) {
+                $atag = "', ($if? ('$atag";
+                $stash->{"if"} = 1;
+            }
+            if($for) {
+                $atag = "', (map {'$atag";
+                $stash->{"for"} = $for;
+            }
+
+            in_tag @S, $tag, $stash;
             $atag
         },
         qr!</ (?<tag> [a-z]\w*) \s*>!ix => sub {
