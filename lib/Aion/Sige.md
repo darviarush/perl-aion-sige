@@ -16,7 +16,7 @@ use Aion;
 with 'Aion::Sige';
 
 has caption => (is => 'ro', isa => Maybe[Str]);
-has list => (is => 'ro', isa => ArrayRef[Dict[Int, Str]]);
+has list => (is => 'ro', isa => ArrayRef[Tuple[Int, Str]]);
 
 1;
 __DATA__
@@ -47,11 +47,12 @@ __DATA__
 ```
 
 ```perl
+use lib "lib";
 use Product;
 
 my $result = "";
 
-Product->new(caption => "tiger", list => [[1, 'dog'], [3, 'cat']])->render  # -> $result
+Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render  # -> $result
 ```
 
 # DESCRIPTION
@@ -68,15 +69,23 @@ Tags with a dash in their name are considered classes and are converted accordin
 
 Compile the template to perl-code and evaluate it into the package.
 
-```perl
-use Aion::Sige qw/sige_compile/;
-
-$aion_sige  # -> 1
-```
 
 # SIGE LANGUAGE
 
+## Routine
 
+## Attribute if
+## Attribute else-if
+## Attribute else
+## Attribute for
+
+## Tags without close
+
+## Comments
+
+## Evaluate attrs
+
+## Evaluate insertions
 
 # AUTHOR
 

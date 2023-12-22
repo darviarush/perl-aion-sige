@@ -11,3 +11,6 @@ on 'test' => sub {
 };
 
 requires 'common::sense';
+requires 'Aion', '0.1';
+requires 'Aion::Format', '0.0.5';
+requires 'Aion::Fs', '0.0.6';
