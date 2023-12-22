@@ -23,7 +23,7 @@ __DATA__
 @render
 
 <img if=caption src=caption>
-'
+\ \' ₽
 <product-list list=list>
 ```
 

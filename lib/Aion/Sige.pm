@@ -180,14 +180,14 @@ sub _compile_sige {
                     if($is_pkg) {
                         push @attrs, "${space}do { my \$r = do {$x}; defined(\$r)? ($attr => \$r): () }";
                     } else {
-                        push @attrs, "', do { my \$r = do {$x}; defined(\$r)? ('$space$attr=\"', Aion::Format::Html::to_html(\$r), '\"): () }, '";
+                        push @attrs, "', do { my \$r = do {$x}; defined(\$r)? ('$space$attr=\"', Aion::Format::Html::to_html(\$r), '\"'): () }, '";
                     }
                 }
                 elsif(exists $+{dblquote}) {
                     if($is_pkg) {
-                        push @attrs, "$space$attr => \"", $text->($+{dblquote}, 1), "\"";
+                        push @attrs, "$space$attr => \"", $text->($+{dblquote}, 1), '"';
                     } else {
-                        push @attrs, "$space$attr=\"", $text->($+{dblquote}), "\"";
+                        push @attrs, "$space$attr=\"", $text->($+{dblquote}), '"';
                     }
                 }
                 elsif(exists $+{ins}) {
@@ -211,14 +211,14 @@ sub _compile_sige {
             undef $close_tag;
 
             my $atag = $is_pkg? do {
-                my $tpkg = ucfirst($tag =~ s!-([a-z])!uc $1!igre);
+                my $tpkg = ucfirst($tag =~ s!-([a-z])!'::' . uc $1!igre);
                 "', Aion::Fs::include('$tpkg')->new(@attrs)->render, '"
             }: "<$tag@attrs>";
             my $stash;
 
             # Вначале if, чтобы если есть и for - построить в for if
             if($if) {
-                $atag = "', ($if? ('$atag";
+                $atag = "', do{$if}? ('$atag";
                 $stash->{if} = 1;
             }
             elsif($elseif) {
@@ -308,7 +308,7 @@ File lib/Product.pm:
 	@render
 	
 	<img if=caption src=caption>
-	'
+	\ \' ₽
 	<product-list list=list>
 
 File lib/Product/List.pm:

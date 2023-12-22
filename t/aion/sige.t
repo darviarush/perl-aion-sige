@@ -23,7 +23,7 @@ use common::sense; use open qw/:std :utf8/; use Test::More 0.98; sub _mkpath_ { 
 #>> @render
 #>> 
 #>> <img if=caption src=caption>
-#>> '
+#>> \ \' ₽
 #>> <product-list list=list>
 #@< EOF
 # 
