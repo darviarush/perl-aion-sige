@@ -229,7 +229,7 @@ sub _compile_sige {
             }
 
             if($for) {
-                my ($var, $data) = $for =~ /^\s*(var)\s*in\s*(.*)\s*$/s;
+                my ($var, $data) = $for =~ /^\s*([a-z]\w*)\s*in\s*(.*)\s*$/is;
                 die "Use for='variable in ...'!" unless defined $var;
                 die "This variable $var is used!" if exists $VAR{$var};
                 $VAR{$var} = 1;
