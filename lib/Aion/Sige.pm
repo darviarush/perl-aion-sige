@@ -2,7 +2,7 @@ package Aion::Sige;
 use common::sense;
 
 use Aion::Format qw/matches/;
-use Aion::Format::Html qw/in_tag out_tag to_html/;
+use Aion::Format::Html qw/in_tag is_single_tag out_tag to_html/;
 use Aion::Fs qw/from_pkg cat lay mkpath/;
 
 use Aion -role;
@@ -108,11 +108,12 @@ sub _compile_sige {
     my $end_tags = sub {
         my @add;
 
+        use DDP; p my $x=["end_tags", @_];
+
         for(@_) {
             my $stash = $_->[1];
 
             if(exists $stash->{if}) {
-                use Carp; use DDP; p my $x=Carp::longmess("?");
                 push @add, "'): (), '";
             }
             elsif(exists $stash->{elseif}) {
@@ -179,12 +180,12 @@ sub _compile_sige {
                     if($is_pkg) {
                         push @attrs, "${space}do { my \$r = do {$x}; defined(\$r)? ($attr => \$r): () }";
                     } else {
-                        push @attrs, "', do { my \$r = do {$x}; defined(\$r)? ('$space$attr=\"', \$r, '\"): () }";
+                        push @attrs, "', do { my \$r = do {$x}; defined(\$r)? ('$space$attr=\"', Aion::Format::Html::to_html(\$r), '\"): () }, '";
                     }
                 }
                 elsif(exists $+{dblquote}) {
                     if($is_pkg) {
-                        push @attrs, "$space$attr => \"", $text->($+{dblquote}), "\"";
+                        push @attrs, "$space$attr => \"", $text->($+{dblquote}, 1), "\"";
                     } else {
                         push @attrs, "$space$attr=\"", $text->($+{dblquote}), "\"";
                     }
@@ -194,7 +195,7 @@ sub _compile_sige {
                     if($is_pkg) {
                         push @attrs, "${space}do {$ins}, "
                     } else {
-                        push @attrs, "$space', do {$ins}, '"
+                        push @attrs, "$space', Aion::Format::Html::to_html(do {$ins}), '"
                     }
                 }
                 else { die "?" }
@@ -236,8 +237,11 @@ sub _compile_sige {
                 $stash->{"for"} = [$var, $exp->($data)];
             }
 
+            use DDP; p my $x=["hi!", \@S, $tag, $stash];
+
             my @add = $end_tags->(in_tag @S, $tag, $stash);
-            "@add$close_tag_end$atag"
+            my @single_tag_close = is_single_tag($tag)? $end_tags->([$tag, $stash]): ();
+            "@add$close_tag_end$atag@single_tag_close"
         },
         qr!</ (?<tag> [a-z]\w*) \s*>!ix => sub {
             my $tag = $+{tag};
@@ -267,9 +271,8 @@ sub _compile_sige {
         },
         qr!\z! => sub {
             die "Not methods in sige!" unless $routine;
-            do { if($close_tag) {
-               $end_tags->($close_tag)
-            } } . "' } 1;"
+            join "", $end_tags->(@S, $close_tag? $close_tag: ()),
+                "' } 1;"
         },
     ;
 }
@@ -305,6 +308,7 @@ File lib/Product.pm:
 	@render
 	
 	<img if=caption src=caption>
+	'
 	<product-list list=list>
 
 File lib/Product/List.pm:
