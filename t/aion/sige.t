@@ -1,6 +1,6 @@
 use common::sense; use open qw/:std :utf8/; use Test::More 0.98; sub _mkpath_ { my ($p) = @_; length($`) && !-e $`? mkdir($`, 0755) || die "mkdir $`: $!": () while $p =~ m!/!g; $p } BEGIN { use Scalar::Util qw//; use Carp qw//; $SIG{__DIE__} = sub { my ($s) = @_; if(ref $s) { $s->{STACKTRACE} = Carp::longmess "?" if "HASH" eq Scalar::Util::reftype $s; die $s } else {die Carp::longmess defined($s)? $s: "undef" }}; my $t = `pwd`; chop $t; $t .= '/' . __FILE__; my $s = '/tmp/.liveman/perl-aion-sige!aion!sige/'; `rm -fr '$s'` if -e $s; chdir _mkpath_($s) or die "chdir $s: $!"; open my $__f__, "<:utf8", $t or die "Read $t: $!"; read $__f__, $s, -s $__f__; close $__f__; while($s =~ /^#\@> (.*)\n((#>> .*\n)*)#\@< EOF\n/gm) { my ($file, $code) = ($1, $2); $code =~ s/^#>> //mg; open my $__f__, ">:utf8", _mkpath_($file) or die "Write $file: $!"; print $__f__ $code; close $__f__; } } # # NAME
 # 
-# Aion::Sige - .
+# Aion::Sige - templater (html-like language, it like vue)
 # 
 # # VERSION
 # 
@@ -51,7 +51,16 @@ subtest 'SYNOPSIS' => sub {
 use lib "lib";
 use Product;
 
-my $result = "";
+my $result = '
+<img src="tiger">
+\\ \\\' ₽
+
+<ul>
+    <li>first
+    <li class="piase1">&lt;dog&gt;<li class="piase3">&quot;cat&quot;
+</ul>
+
+';
 
 ::is scalar do {Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render}, scalar do{$result}, 'Product->new(caption => "tiger", list => [[1, \'<dog>\'], [3, \'"cat"\']])->render  # -> $result';
 

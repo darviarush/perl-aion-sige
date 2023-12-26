@@ -1,6 +1,6 @@
 # NAME
 
-Aion::Sige - .
+Aion::Sige - templater (html-like language, it like vue)
 
 # VERSION
 
@@ -51,7 +51,16 @@ __DATA__
 use lib "lib";
 use Product;
 
-my $result = "";
+my $result = '
+<img src="tiger">
+\\ \\\' ₽
+
+<ul>
+    <li>first
+    <li class="piase1">&lt;dog&gt;<li class="piase3">&quot;cat&quot;
+</ul>
+
+';
 
 Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render  # -> $result
 ```

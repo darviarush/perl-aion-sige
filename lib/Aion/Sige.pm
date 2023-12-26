@@ -5,6 +5,8 @@ use Aion::Format qw/matches/;
 use Aion::Format::Html qw/in_tag is_single_tag out_tag to_html/;
 use Aion::Fs qw/from_pkg cat lay mkpath/;
 
+use config DEBUG => 0;
+
 use Aion -role;
 
 # Шаблоны js
@@ -36,7 +38,7 @@ sub _require_sige {
 
     my $sige = $self->_compile_sige($code, $pkg);
 
-    use DDP; p my $x=["hi!", $sige];
+    print STDERR "\n\n$sige\n\n" if DEBUG;
 
     my $sig = './' . ($pm =~ s/\.(\w+)$/.sige/r);
     $sig = eval { mkpath $sig };
@@ -65,6 +67,9 @@ my $RE_ATTR = qr{
 # Компилирует шаблоны в код perl
 sub _compile_sige {
 	my ($self, $code, $pkg) = @_;
+
+    # Без пробелов при вставке в строки массивов
+    local $" = "";
 
     # Локальные переменные для for
     my %VAR;
@@ -101,14 +106,14 @@ sub _compile_sige {
     # Переводит выражения {{ ... }} в тексте в выражение perl
     my $text = sub {
         my ($y) = @_;
-        $y =~ s/\{\{(.*?)\}\}/join "", "', do {", $exp->($1), "},'"/ge;
+        $y =~ s/\{\{(.*?)\}\}/join "", "', do {", $exp->($1), "}, '"/ge;
         $y
     };
 
     my $end_tags = sub {
         my @add;
 
-        use DDP; p my $x=["end_tags", @_];
+        if(DEBUG) { require "DDP.pm"; DDP::p(my $x=["end_tags", @_]); }
 
         for(@_) {
             my $stash = $_->[1];
@@ -126,7 +131,7 @@ sub _compile_sige {
             if(my $for = $stash->{for}) {
                 my ($var, $val) = @$for;
                 delete $VAR{$var};
-                push @add, "} \@{$val}), '";
+                push @add, "' } \@{$val}), '";
             }
         }
 
@@ -140,6 +145,7 @@ sub _compile_sige {
     matches $code,
         qr{<(?<tag> [a-z][\w-]*) (?<attrs> ($RE_ATTR)*) \s* >}xino => sub {
             my ($tag, $attrs) = @+{qw/tag attrs/};
+            $tag = lc $tag;
 
             my $is_pkg = $tag =~ /-/;
             my @attrs;
@@ -150,8 +156,9 @@ sub _compile_sige {
 
             while($attrs =~ m{ $RE_ATTR }xngo) {
                 my ($space, $attr) = @+{qw/space attr/};
+                $attr = lc $attr;
 
-                use DDP; p my $x=["hi!", $space, $attr];
+                if(DEBUG) { require 'DDP.pm'; DDP::p(my $x=["attr", $space, $attr]); }
 
                 if($attr eq "if") {
                     die "The if attribute is already present in the <$tag>" if defined $if;
@@ -174,18 +181,23 @@ sub _compile_sige {
                     die "The if-attribute must be placed after for-attribute in the <$tag>" if defined $if;
 
                     $for = $+{onequote} // $+{noquote} // $+{dblquote};
+                    my ($var, $data) = $for =~ /^\s*([a-z]\w*)\s*in\s*(.*)\s*$/is;
+                    die "Use for='variable in ...'!" unless defined $var;
+                    die "This variable $var is used!" if exists $VAR{$var};
+                    $VAR{$var} = 1;
+                    $for = [$var, $data];
                 }
                 elsif(defined(my $x = $+{onequote} // $+{noquote})) {
                     $x = $exp->($x);
                     if($is_pkg) {
-                        push @attrs, "${space}do { my \$r = do {$x}; defined(\$r)? ($attr => \$r): () }";
+                        push @attrs, "${space}do { my \$r = do {$x}; defined(\$r)? ($attr => \$r): () },";
                     } else {
                         push @attrs, "', do { my \$r = do {$x}; defined(\$r)? ('$space$attr=\"', Aion::Format::Html::to_html(\$r), '\"'): () }, '";
                     }
                 }
                 elsif(exists $+{dblquote}) {
                     if($is_pkg) {
-                        push @attrs, "$space$attr => \"", $text->($+{dblquote}, 1), '"';
+                        push @attrs, "$space$attr => \"", $text->($+{dblquote}, 1), '", ';
                     } else {
                         push @attrs, "$space$attr=\"", $text->($+{dblquote}), '"';
                     }
@@ -229,30 +241,28 @@ sub _compile_sige {
             }
 
             if($for) {
-                my ($var, $data) = $for =~ /^\s*([a-z]\w*)\s*in\s*(.*)\s*$/is;
-                die "Use for='variable in ...'!" unless defined $var;
-                die "This variable $var is used!" if exists $VAR{$var};
-                $VAR{$var} = 1;
-                $atag = "', (map { my \$_$var = $_; '$atag";
+                my ($var, $data) = @$for;
+                $atag = "', (map { my \$_$var = \$_; '$atag";
                 $stash->{"for"} = [$var, $exp->($data)];
             }
 
-            use DDP; p my $x=["hi!", \@S, $tag, $stash];
+            if(DEBUG) { require "DDP.pm"; DDP::p(my $x=["S, tag, stash", \@S, $tag, $stash]); }
 
             my @add = $end_tags->(in_tag @S, $tag, $stash);
             my @single_tag_close = is_single_tag($tag)? $end_tags->([$tag, $stash]): ();
             "@add$close_tag_end$atag@single_tag_close"
         },
-        qr!</ (?<tag> [a-z]\w*) \s*>!ix => sub {
-            my $tag = $+{tag};
+        qr!(?<space> \s*)</ (?<tag> [a-z]\w*) \s*>!ix => sub {
+            my ($space, $tag) = @+{qw/space tag/};
+            $tag = lc $tag;
             my @out = out_tag @S, $tag;
             $close_tag = pop @out;
             @out = $end_tags->(@out);
-            "@out</$tag>"
+            "@out$space</$tag>"
         },
-        qr! \{\{ (?<ins> .*?) (?<nohtml> \!) \s* \}\} !x => sub {
+        qr! \{\{ (?<ins> .*?) (?<nohtml> \!)? (?<space> \s*) \}\} !xs => sub {
             my $ins = $exp->($+{ins});
-            $+{nohtml} ? "', do {$ins}, '": "', Aion::Format::Html::to_html(do {$ins}), '"
+            exists $+{nohtml} ? "', do {$ins}, '": "', Aion::Format::Html::to_html(do {$ins$+{space}}), '"
         },
         qr{<!--.*?-->}s => sub {
             my $close = $close_tag? $end_tags->($close_tag): "";
@@ -264,7 +274,7 @@ sub _compile_sige {
         },
         qr{^\@(?<name> \w+)[ \t]*\n}mnx => sub {
             join "", $routine? "'}" : (),
-            "sub ", $routine = $+{name}, " {\n\tmy (\$self) = \@_; return '"
+            "sub ", $routine = $+{name}, " {\n\tmy (\$self) = \@_; return join '', '"
         },
         qr!\A! => sub {
             "package $pkg; "
@@ -285,7 +295,7 @@ __END__
 
 =head1 NAME
 
-Aion::Sige - .
+Aion::Sige - templater (html-like language, it like vue)
 
 =head1 VERSION
 
@@ -335,7 +345,16 @@ File lib/Product/List.pm:
 	use lib "lib";
 	use Product;
 	
-	my $result = "";
+	my $result = '
+	<img src="tiger">
+	\\ \\\' ₽
+	
+	<ul>
+	    <li>first
+	    <li class="piase1">&lt;dog&gt;<li class="piase3">&quot;cat&quot;
+	</ul>
+	
+	';
 	
 	Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render  # -> $result
 
