@@ -24,7 +24,7 @@ use common::sense; use open qw/:std :utf8/; use Test::More 0.98; sub _mkpath_ { 
 #>> 
 #>> <img if=caption src=caption>
 #>> \ \' ₽
-#>> <product-list list=list>
+#>> <Product::List list=list />
 #@< EOF
 # 
 # File lib/Product/List.pm:
@@ -62,7 +62,7 @@ my $result = '
 
 ';
 
-::is scalar do {Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render}, scalar do{$result}, 'Product->new(caption => "tiger", list => [[1, \'<dog>\'], [3, \'"cat"\']])->render  # -> $result';
+::is scalar do {Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render}, scalar do{$result}, 'Product->new(caption => "tiger", list => [[1, \'<dog>\'], [3, \'"cat"\']])->render # -> $result';
 
 # 
 # # DESCRIPTION
@@ -71,7 +71,7 @@ my $result = '
 # 
 # Attribute values ​​enclosed in single quotes are calculated. Attribute values ​​without quotes are also calculated. They must not have spaces.
 # 
-# Tags with a dash in their name are considered classes and are converted accordingly: `<product-list list=list>` to `use Product::List; Product::List->new(list => $self->list)->render`.
+# Tags with a dash in their name are considered classes and are converted accordingly: `<Product::List list=list>` to `use Product::List; Product::List->new(list => $self->list)->render`.
 # 
 # # SUBROUTINES
 # 
@@ -82,7 +82,106 @@ my $result = '
 # 
 # # SIGE LANGUAGE
 # 
-# ## Routine
+# The template code is located in the `*.html` file of the same name next to the module or in the `__DATA__` section. But not here and there.
+# 
+# File lib/Ex.pm:
+#@> lib/Ex.pm
+#>> package Ex;
+#>> use Aion;
+#>> with Aion::Sige;
+#>> 1;
+#>> __DATA__
+#>> @render
+#>> 123
+#@< EOF
+# 
+# File lib/Ex.html:
+#@> lib/Ex.html
+#>> 123
+#@< EOF
+# 
+done_testing; }; subtest 'SIGE LANGUAGE' => sub { 
+eval "require Ex";
+::like scalar do {$@}, qr!The sige code in __DATA__ and in \*\.html\!!, '$@   # ~> The sige code in __DATA__ and in \*\.html!';
+
+# 
+# ## Subroutine
+# 
+# From the beginning of the line and the @ symbol, methods begin that can be called on the package:
+# 
+# File lib/ExHtml.pm:
+#@> lib/ExHtml.pm
+#>> package ExHtml;
+#>> use Aion;
+#>> with Aion::Sige;
+#>> 1;
+#@< EOF
+# 
+# File lib/ExHtml.html:
+#@> lib/ExHtml.html
+#>> @render
+#>> 567
+#>> @mix
+#>> 890
+#@< EOF
+# 
+done_testing; }; subtest 'Subroutine' => sub { 
+require 'ExHtml.pm';
+::is scalar do {ExHtml->render}, scalar do{"567\n"}, 'ExHtml->render # -> "567\n"';
+::is scalar do {ExHtml->mix}, scalar do{"890\n"}, 'ExHtml->mix    # -> "890\n"';
+
+# 
+# ## Evaluate insertions
+# 
+# Expression in `{{ }}` evaluate.
+# 
+# File lib/Ex/Insertions.pm:
+#@> lib/Ex/Insertions.pm
+#>> package Ex::Insertions;
+#>> use Aion;
+#>> with Aion::Sige;
+#>> 
+#>> has x => (is => 'ro');
+#>> 
+#>> sub plus {
+#>> 	my ($self, $x, $y) = @_;
+#>> 	$x + $y
+#>> }
+#>> 
+#>> sub x_plus {
+#>> 	my ($x, $y) = @_;
+#>> 	$x + $y
+#>> }
+#>> 
+#>> 1;
+#>> 
+#>> __DATA__
+#>> @render
+#>> {{ x }} {{ x !}}
+#>> @math
+#>> {{ x + 10 }}
+#>> @call
+#>> {{ x_plus(x, 3) }}-{{ &x_plus x, 4 }}-{{ self.plus(x, 5) }}
+#>> @strings
+#>> {{ "\t" . 'hi!' }}
+#>> @hash
+#>> {{ x:key }}
+#>> @array
+#>> {{ x[0] }}, {{ x[1] }}
+#@< EOF
+# 
+done_testing; }; subtest 'Evaluate insertions' => sub { 
+require Ex::Insertions;
+::is scalar do {Ex::Insertions->new(x => "&")->render}, "&amp; &\n", 'Ex::Insertions->new(x => "&")->render       # => &amp; &\n';
+::is scalar do {Ex::Insertions->new(x => 10)->math}, "20\n", 'Ex::Insertions->new(x => 10)->math          # => 20\n';
+::is scalar do {Ex::Insertions->new(x => 10)->call}, "13-14-15\n", 'Ex::Insertions->new(x => 10)->call          # => 13-14-15\n';
+::is scalar do {Ex::Insertions->new->strings}, "\thi!\n", 'Ex::Insertions->new->strings                # => \thi!\n';
+::is scalar do {Ex::Insertions->new(x => {key => 5})->hash}, "5\n", 'Ex::Insertions->new(x => {key => 5})->hash  # => 5\n';
+::is scalar do {Ex::Insertions->new(x => [10, 20])->array}, "10, 20\n", 'Ex::Insertions->new(x => [10, 20])->array   # => 10, 20\n';
+
+# 
+# ## Evaluate attrs
+# 
 # 
 # ## Attribute if
 # ## Attribute else-if
@@ -92,10 +191,6 @@ my $result = '
 # ## Tags without close
 # 
 # ## Comments
-# 
-# ## Evaluate attrs
-# 
-# ## Evaluate insertions
 # 
 # # AUTHOR
 # 

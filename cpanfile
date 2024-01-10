@@ -10,7 +10,8 @@ on 'test' => sub {
 	requires 'Test::More', '0.98';
 };
 
+requires 'config';
 requires 'common::sense';
 requires 'Aion', '0.1';
-requires 'Aion::Format', '0.0.8';
+requires 'Aion::Format', '0.0.9';
 requires 'Aion::Fs', '0.0.6';

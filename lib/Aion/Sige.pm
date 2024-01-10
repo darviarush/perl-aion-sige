@@ -84,16 +84,17 @@ sub _compile_sige {
                     $+{who} eq "."? "->$+{var}":
                     $+{who} eq ":"? "->{$+{var}}":
                     (exists $VAR{$+{var}}? "\$_$+{var}": "\$self->$+{var}")
-                    #"(exists \$kw{$+{var}}? \$kw{$+{var}}: \$self->$+{var})"
                 ) . (exists $+{sk}? "->[": "")
             ):
             exists $+{call}? $+{call}:
+            exists $+{self}? '$self':
             $&
         };
 
         $y =~ s{
             \b (ge|le|gt|lt|ne|eq|and|or|not) \b
-            | (?<call> [a-z_] \( )
+            | \b (?<self> self) \b
+            | (?<call> [a-z_]\w+ \( )
             | (?<who> [&:.])? (?<var> [a-z_]\w* ) (?<sk> \[ )?
             | "(\\"|[^"])*"
             | '(\\'|[^'])*'
@@ -105,9 +106,14 @@ sub _compile_sige {
 
     # Переводит выражения {{ ... }} в тексте в выражение perl
     my $text = sub {
-        my ($y) = @_;
-        $y =~ s/\{\{(.*?)\}\}/join "", "', do {", $exp->($1), "}, '"/ge;
-        $y
+        my ($y, $perl) = @_;
+        my $is = $y =~ s/\{\{(.*?)(!)?\}\}/ join "",
+            $perl || $2? ("', do {", $exp->($1), "}, '")
+            : ("', Aion::Format::Html::to_html(do {", $exp->($1), "}), '")
+        /ge;
+        $perl? (
+            $is? "join('', '$y')": "'$y'"
+        ): $y
     };
 
     my $end_tags = sub {
@@ -143,11 +149,11 @@ sub _compile_sige {
     my $routine;    # Текущая подпрограмма
 
     matches $code,
-        qr{<(?<tag> [a-z][\w-]*) (?<attrs> ($RE_ATTR)*) \s* >}xino => sub {
-            my ($tag, $attrs) = @+{qw/tag attrs/};
-            $tag = lc $tag;
+        qr{<(?<tag> [a-z][\w:-]*) (?<attrs> ($RE_ATTR)*) \s* (?<inline> /)? >}xino => sub {
+            my ($tag, $attrs, $inline) = @+{qw/tag attrs inline/};
 
-            my $is_pkg = $tag =~ /-/;
+            my $is_pkg = $tag =~ /::/;
+            $tag = lc $tag unless $is_pkg;
             my @attrs;
             my $if;
             my $elseif;
@@ -156,7 +162,6 @@ sub _compile_sige {
 
             while($attrs =~ m{ $RE_ATTR }xngo) {
                 my ($space, $attr) = @+{qw/space attr/};
-                $attr = lc $attr;
 
                 if(DEBUG) { require 'DDP.pm'; DDP::p(my $x=["attr", $space, $attr]); }
 
@@ -197,7 +202,7 @@ sub _compile_sige {
                 }
                 elsif(exists $+{dblquote}) {
                     if($is_pkg) {
-                        push @attrs, "$space$attr => \"", $text->($+{dblquote}, 1), '", ';
+                        push @attrs, "$space$attr => ", $text->($+{dblquote}, 1), ', ';
                     } else {
                         push @attrs, "$space$attr=\"", $text->($+{dblquote}), '"';
                     }
@@ -222,11 +227,19 @@ sub _compile_sige {
             my $close_tag_end = $close_tag? $end_tags->($close_tag): undef;
             undef $close_tag;
 
-            my $atag = $is_pkg? do {
-                my $tpkg = ucfirst($tag =~ s!-([a-z])!'::' . uc $1!igre);
-                "', Aion::Fs::include('$tpkg')->new(@attrs)->render, '"
-            }: "<$tag@attrs>";
             my $stash;
+
+            my $atag = $is_pkg? do {
+                my $tpkg = $tag =~ s!::$!!r;
+                my $begin = "', Aion::Fs::include('$tpkg')->new(@attrs";
+                if($inline) {
+                    $stash->{end_tag} = ")->render, '";
+                    $begin
+                } else {
+                    $stash->{end_tag} = "'))->render, '";
+                    "$begin, content => join('', '"
+                }
+            }: do { $stash->{end_tag} = "</$tag>"; "<$tag@attrs>" };
 
             # Вначале if, чтобы если есть и for - построить в for if
             if($if) {
@@ -249,16 +262,26 @@ sub _compile_sige {
             if(DEBUG) { require "DDP.pm"; DDP::p(my $x=["S, tag, stash", \@S, $tag, $stash]); }
 
             my @add = $end_tags->(in_tag @S, $tag, $stash);
-            my @single_tag_close = is_single_tag($tag)? $end_tags->([$tag, $stash]): ();
+            my @single_tag_close;
+            if(is_single_tag($tag)) {
+                @single_tag_close = $end_tags->([$tag, $stash]);
+            }
+            elsif($inline) {
+                pop @S;
+                push @single_tag_close,
+                    $stash->{end_tag},
+                    $end_tags->([$tag, $stash]);
+            }
             "@add$close_tag_end$atag@single_tag_close"
         },
-        qr!(?<space> \s*)</ (?<tag> [a-z]\w*) \s*>!ix => sub {
+        qr!(?<space> \s*)</ (?<tag> [a-z][\w:-]*) \s*>!ix => sub {
             my ($space, $tag) = @+{qw/space tag/};
-            $tag = lc $tag;
+            my $is_pkg = $tag =~ /::/;
+            $tag = lc $tag unless $is_pkg;
             my @out = out_tag @S, $tag;
             $close_tag = pop @out;
             @out = $end_tags->(@out);
-            "@out$space</$tag>"
+            "@out$space$close_tag->[1]->{end_tag}"
         },
         qr! \{\{ (?<ins> .*?) (?<nohtml> \!)? (?<space> \s*) \}\} !xs => sub {
             my $ins = $exp->($+{ins});
@@ -277,12 +300,13 @@ sub _compile_sige {
             "sub ", $routine = $+{name}, " {\n\tmy (\$self) = \@_; return join '', '"
         },
         qr!\A! => sub {
-            "package $pkg; "
+            "package $pkg; use common::sense; "
         },
         qr!\z! => sub {
             die "Not methods in sige!" unless $routine;
-            join "", $end_tags->(@S, $close_tag? $close_tag: ()),
-                "' } 1;"
+            my @end_tags = $end_tags->(@S, $close_tag? $close_tag: ());
+            die "There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
+            join "", @end_tags, "' } 1;"
         },
     ;
 }
@@ -319,7 +343,7 @@ File lib/Product.pm:
 	
 	<img if=caption src=caption>
 	\ \' ₽
-	<product-list list=list>
+	<Product::List list=list />
 
 File lib/Product/List.pm:
 
@@ -356,7 +380,7 @@ File lib/Product/List.pm:
 	
 	';
 	
-	Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render  # -> $result
+	Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render # -> $result
 
 =head1 DESCRIPTION
 
@@ -364,7 +388,7 @@ Aion::Sige parses html in the __DATA__ section or in the html file of the same n
 
 Attribute values ​​enclosed in single quotes are calculated. Attribute values ​​without quotes are also calculated. They must not have spaces.
 
-Tags with a dash in their name are considered classes and are converted accordingly: C<< E<lt>product-list list=listE<gt> >> to C<< use Product::List; Product::List-E<gt>new(list =E<gt> $self-E<gt>list)-E<gt>render >>.
+Tags with a dash in their name are considered classes and are converted accordingly: C<< E<lt>Product::List list=listE<gt> >> to C<< use Product::List; Product::List-E<gt>new(list =E<gt> $self-E<gt>list)-E<gt>render >>.
 
 =head1 SUBROUTINES
 
@@ -374,7 +398,100 @@ Compile the template to perl-code and evaluate it into the package.
 
 =head1 SIGE LANGUAGE
 
-=head2 Routine
+The template code is located in the C<*.html> file of the same name next to the module or in the C<__DATA__> section. But not here and there.
+
+File lib/Ex.pm:
+
+	package Ex;
+	use Aion;
+	with Aion::Sige;
+	1;
+	__DATA__
+	@render
+	123
+
+File lib/Ex.html:
+
+	123
+
+
+
+	eval "require Ex";
+	$@   # ~> The sige code in __DATA__ and in \*\.html!
+
+=head2 Subroutine
+
+From the beginning of the line and the @ symbol, methods begin that can be called on the package:
+
+File lib/ExHtml.pm:
+
+	package ExHtml;
+	use Aion;
+	with Aion::Sige;
+	1;
+
+File lib/ExHtml.html:
+
+	@render
+	567
+	@mix
+	890
+
+
+
+	require 'ExHtml.pm';
+	ExHtml->render # -> "567\n"
+	ExHtml->mix    # -> "890\n"
+
+=head2 Evaluate insertions
+
+Expression in C<{{ }}> evaluate.
+
+File lib/Ex/Insertions.pm:
+
+	package Ex::Insertions;
+	use Aion;
+	with Aion::Sige;
+	
+	has x => (is => 'ro');
+	
+	sub plus {
+		my ($self, $x, $y) = @_;
+		$x + $y
+	}
+	
+	sub x_plus {
+		my ($x, $y) = @_;
+		$x + $y
+	}
+	
+	1;
+	
+	__DATA__
+	@render
+	{{ x }} {{ x !}}
+	@math
+	{{ x + 10 }}
+	@call
+	{{ x_plus(x, 3) }}-{{ &x_plus x, 4 }}-{{ self.plus(x, 5) }}
+	@strings
+	{{ "\t" . 'hi!' }}
+	@hash
+	{{ x:key }}
+	@array
+	{{ x[0] }}, {{ x[1] }}
+
+
+
+	require Ex::Insertions;
+	Ex::Insertions->new(x => "&")->render       # => &amp; &\n
+	Ex::Insertions->new(x => 10)->math          # => 20\n
+	Ex::Insertions->new(x => 10)->call          # => 13-14-15\n
+	Ex::Insertions->new->strings                # => \thi!\n
+	Ex::Insertions->new(x => {key => 5})->hash  # => 5\n
+	Ex::Insertions->new(x => [10, 20])->array   # => 10, 20\n
+
+=head2 Evaluate attrs
 
 =head2 Attribute if
 
@@ -387,10 +504,6 @@ Compile the template to perl-code and evaluate it into the package.
 =head2 Tags without close
 
 =head2 Comments
-
-=head2 Evaluate attrs
-
-=head2 Evaluate insertions
 
 =head1 AUTHOR
 
