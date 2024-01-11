@@ -5,12 +5,9 @@ use Aion::Format qw/matches/;
 use Aion::Format::Html qw/in_tag is_single_tag out_tag to_html/;
 use Aion::Fs qw/from_pkg cat lay mkpath/;
 
-use config DEBUG => 0;
+use config DEBUG => 1;
 
 use Aion -role;
-
-# Шаблоны js
-has sige => (is => 'ro', isa => Str);
 
 # Срабатывает при использовании роли
 sub import_with {
@@ -56,11 +53,11 @@ sub _require_sige {
 # Компилирует шаблон в код perl
 my $RE_ATTR = qr{
     (?<space> \s*)
-    (?<attr>\w+) \s* = \s*
+    (?<attr>[a-z_][\w:-]*) \s* ( = \s*
         ( ' (?<onequote> (\\'|[^'])* ) '
         | " (?<dblquote> (\\"|[^"])* ) "
         | (?<noquote> [^\s>]+ )
-        )
+        ) )?
     | \{\{ (?<ins> .*?) \}\}
 }xn;
 
@@ -92,7 +89,7 @@ sub _compile_sige {
         };
 
         $y =~ s{
-            \b (ge|le|gt|lt|ne|eq|and|or|not) \b
+            \b (ge|le|gt|lt|ne|eq|and|or|not|undef) \b
             | \b (?<self> self) \b
             | (?<call> [a-z_]\w+ \( )
             | (?<who> [&:.])? (?<var> [a-z_]\w* ) (?<sk> \[ )?
@@ -149,8 +146,9 @@ sub _compile_sige {
     my $routine;    # Текущая подпрограмма
 
     matches $code,
-        qr{<(?<tag> [a-z][\w:-]*) (?<attrs> ($RE_ATTR)*) \s* (?<inline> /)? >}xino => sub {
+        qr{<(?<tag> [a-z][\w:-]*) (?<attrs> ($RE_ATTR)*?) \s* (?<inline> /)? >}xino => sub {
             my ($tag, $attrs, $inline) = @+{qw/tag attrs inline/};
+            $inline = 1 if !defined $inline and $attrs =~ s/\/\z//;
 
             my $is_pkg = $tag =~ /::/;
             $tag = lc $tag unless $is_pkg;
@@ -192,6 +190,14 @@ sub _compile_sige {
                     $VAR{$var} = 1;
                     $for = [$var, $data];
                 }
+                elsif(exists $+{ins}) {
+                    my $ins = $exp->($+{ins});
+                    if($is_pkg) {
+                        push @attrs, "${space}do {$ins}, "
+                    } else {
+                        push @attrs, "$space', Aion::Format::Html::to_html(do {$ins}), '"
+                    }
+                }
                 elsif(defined(my $x = $+{onequote} // $+{noquote})) {
                     $x = $exp->($x);
                     if($is_pkg) {
@@ -207,15 +213,13 @@ sub _compile_sige {
                         push @attrs, "$space$attr=\"", $text->($+{dblquote}), '"';
                     }
                 }
-                elsif(exists $+{ins}) {
-                    my $ins = $exp->($+{ins});
+                else {
                     if($is_pkg) {
-                        push @attrs, "${space}do {$ins}, "
+                        push @attrs, "$space$attr => undef, ";
                     } else {
-                        push @attrs, "$space', Aion::Format::Html::to_html(do {$ins}), '"
+                        push @attrs, "$space$attr";
                     }
                 }
-                else { die "?" }
             }
 
 
@@ -493,11 +497,75 @@ File lib/Ex/Insertions.pm:
 
 =head2 Evaluate attrs
 
-=head2 Attribute if
+Attributes with values ​​in C<""> are considered a string, while those in C<''> or without quotes are considered an expression.
 
-=head2 Attribute else-if
+If value of attribute is C<undef>, then attribute is'nt show.
 
-=head2 Attribute else
+File lib/Ex/Attrs.pm:
+
+	package Ex::Attrs;
+	use Aion;
+	with Aion::Sige;
+	
+	has x => (is => 'ro', default => 10);
+	
+	1;
+	__DATA__
+	@render
+	<a href="link" cat='x + 3' dog=x/2 disabled noshow=undef/>
+
+
+
+	require Ex::Attrs;
+	Ex::Attrs->new->render       # => <a href="link" cat="13" dog="5" disabled></a>\n
+
+=head2 Attributes if, else-if and else
+
+File lib/Ex/If.pm:
+
+	package Ex::If;
+	use Aion;
+	with Aion::Sige;
+	
+	has x => (is => 'ro');
+	
+	1;
+	__DATA__
+	@full
+	<a if = 'x > 0' />
+	<b else-if = x<0 />
+	<i else>-</i>
+	
+	@elseif
+	<a if = 'x > 0' />
+	<b else-if = x<0 />
+	
+	@ifelse
+	<a if = 'x > 0' />
+	<i else>-</i>
+	
+	@many
+	<a if = 'x == 1' />
+	<b else-if = x==2 />
+	<с else-if = x==3 >{{x}}</c>
+	<d else-if = x==4 />
+	<e else />
+
+
+
+	require Ex::If;
+	Ex::If->new(x=> 1)->full # => <a></a>\n\n
+	Ex::If->new(x=>-1)->full # => <b></b>\n\n
+	Ex::If->new(x=> 0)->full # => <i>-</i>\n\n
+	
+	Ex::If->new(x=> 1)->ifelse # => <a></a>\n\n
+	Ex::If->new(x=> 0)->ifelse # => <i></i>\n\n
+	
+	Ex::If->new(x=> 1)->many # => <a></a>\n\n
+	Ex::If->new(x=> 2)->many # => <b></b>\n\n
+	Ex::If->new(x=> 3)->many # => <c>3</c>\n\n
+	Ex::If->new(x=> 4)->many # => <d></d>\n\n
+	Ex::If->new(x=> 5)->many # => <e></e>\n\n
 
 =head2 Attribute for
 
@@ -509,10 +577,10 @@ File lib/Ex/Insertions.pm:
 
 Yaroslav O. Kosmina L<mailto:dart@cpan.org>
 
-=head1 COPYRIGHT AND LICENSE
-
-This software is copyright (c) 2023 by Yaroslav O. Kosmina.
-
-This is free software; you can redistribute it and/or modify it under the same terms as the Perl 5 programming language system itself.
+=head1 LICENSE
 
 ⚖ B<GPLv3>
+
+=head1 COPYRIGHT
+
+Aion::Sige is copyright © 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved.

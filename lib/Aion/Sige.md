@@ -182,7 +182,9 @@ Ex::Insertions->new(x => [10, 20])->array   # => 10, 20\n
 
 ## Evaluate attrs
 
+Attributes with values ​​in `""` are considered a string, while those in `''` or without quotes are considered an expression.
 
+If value of attribute is `undef`, then attribute is'nt show.
 
 File lib/Ex/Attrs.pm:
 ```perl
@@ -190,19 +192,67 @@ package Ex::Attrs;
 use Aion;
 with Aion::Sige;
 
+has x => (is => 'ro', default => 10);
+
 1;
 __DATA__
 @render
-
-<>
+<a href="link" cat='x + 3' dog=x/2 disabled noshow=undef/>
 ```
 
 ```perl
 require Ex::Attrs;
-Ex::Attrs->new(x => "&")->render       # => &amp; &\n
+Ex::Attrs->new->render       # => <a href="link" cat="13" dog="5" disabled></a>\n
 ```
 
 ## Attributes if, else-if and else
+
+File lib/Ex/If.pm:
+```perl
+package Ex::If;
+use Aion;
+with Aion::Sige;
+
+has x => (is => 'ro');
+
+1;
+__DATA__
+@full
+<a if = 'x > 0' />
+<b else-if = x<0 />
+<i else>-</i>
+
+@elseif
+<a if = 'x > 0' />
+<b else-if = x<0 />
+
+@ifelse
+<a if = 'x > 0' />
+<i else>-</i>
+
+@many
+<a if = x ==1 />
+<b else-if = x==2 />
+<с else-if = x==3 >{{x}}</c>
+<d else-if = x==4 />
+<e else />
+```
+
+```perl
+require Ex::If;
+Ex::If->new(x=> 1)->full # => <a></a>\n\n
+Ex::If->new(x=>-1)->full # => <b></b>\n\n
+Ex::If->new(x=> 0)->full # => <i>-</i>\n\n
+
+Ex::If->new(x=> 1)->ifelse # => <a></a>\n\n
+Ex::If->new(x=> 0)->ifelse # => <i></i>\n\n
+
+Ex::If->new(x=> 1)->many # => <a></a>\n\n
+Ex::If->new(x=> 2)->many # => <b></b>\n\n
+Ex::If->new(x=> 3)->many # => <c>3</c>\n\n
+Ex::If->new(x=> 4)->many # => <d></d>\n\n
+Ex::If->new(x=> 5)->many # => <e></e>\n\n
+```
 
 ## Attribute for
 
@@ -214,9 +264,10 @@ Ex::Attrs->new(x => "&")->render       # => &amp; &\n
 
 Yaroslav O. Kosmina <dart@cpan.org>
 
-# COPYRIGHT AND LICENSE
-This software is copyright (c) 2023 by Yaroslav O. Kosmina.
-
-This is free software; you can redistribute it and/or modify it under the same terms as the Perl 5 programming language system itself.
+# LICENSE
 
 ⚖ **GPLv3**
+
+# COPYRIGHT
+
+Aion::Sige is copyright © 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved.
