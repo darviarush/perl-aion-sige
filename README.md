@@ -57,7 +57,8 @@ my $result = '
 
 <ul>
     <li>first
-    <li class="piase1">&lt;dog&gt;<li class="piase3">&quot;cat&quot;
+    <li class="piase1">&lt;dog&gt;
+    <li class="piase3">&quot;cat&quot;
 </ul>
 
 ';
@@ -220,7 +221,7 @@ __DATA__
 @full
 <a if = 'x > 0' />
 <b else-if = x<0 />
-<i else>-</i>
+<i else />
 
 @elseif
 <a if = 'x > 0' />
@@ -231,28 +232,36 @@ __DATA__
 <i else>-</i>
 
 @many
-<a if = 'x == 1' />
-<b else-if = x==2 />
-<с else-if = x==3 >{{x}}</c>
+<a if = x==1><hr if=x><e else>*</e></a>
+<b else-if = x==2/>
+<c else-if = x==3 >{{x}}</c>
 <d else-if = x==4 />
 <e else />
 ```
 
 ```perl
 require Ex::If;
-Ex::If->new(x=> 1)->full # => <a></a>\n\n
-Ex::If->new(x=>-1)->full # => <b></b>\n\n
-Ex::If->new(x=> 0)->full # => <i>-</i>\n\n
+Ex::If->new(x=> 1)->full # => <a></a>\n
+Ex::If->new(x=>-1)->full # => <b></b>\n
+Ex::If->new(x=> 0)->full # => <i></i>\n\n
 
-Ex::If->new(x=> 1)->ifelse # => <a></a>\n\n
-Ex::If->new(x=> 0)->ifelse # => <i></i>\n\n
+Ex::If->new(x=> 1)->elseif # => <a></a>\n
+Ex::If->new(x=>-1)->elseif # => <b></b>\n\n
+Ex::If->new(x=> 0)->elseif # -> ""
 
-Ex::If->new(x=> 1)->many # => <a></a>\n\n
-Ex::If->new(x=> 2)->many # => <b></b>\n\n
-Ex::If->new(x=> 3)->many # => <c>3</c>\n\n
-Ex::If->new(x=> 4)->many # => <d></d>\n\n
-Ex::If->new(x=> 5)->many # => <e></e>\n\n
+Ex::If->new(x=> 1)->ifelse # => <a></a>\n
+Ex::If->new(x=> 0)->ifelse # => <i>-</i>\n\n
+
+Ex::If->new(x=> 1)->many # => <a><hr></a>\n
+Ex::If->new(x=> 2)->many # => <b></b>\n
+Ex::If->new(x=> 3)->many # => <c>3</c>\n
+Ex::If->new(x=> 4)->many # => <d></d>\n
+Ex::If->new(x=> 5)->many # => <e></e>\n
 ```
+
+eval { Aion::Sige->_compile_sige("\@x\n<a if=1 if=2 />") }; $@  # ~> The if attribute is already present in the <a>
+
+eval { Aion::Sige->_compile_sige("\@x\n<a if="1" />") }; $@  # ~> Double quote not supported in attr `if` in the <a>
 
 ## Attribute for
 

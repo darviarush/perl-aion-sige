@@ -5,7 +5,7 @@ use Aion::Format qw/matches/;
 use Aion::Format::Html qw/in_tag is_single_tag out_tag to_html/;
 use Aion::Fs qw/from_pkg cat lay mkpath/;
 
-use config DEBUG => 1;
+use config DEBUG => 0;
 
 use Aion -role;
 
@@ -50,17 +50,6 @@ sub _require_sige {
     }
 }
 
-# Компилирует шаблон в код perl
-my $RE_ATTR = qr{
-    (?<space> \s*)
-    (?<attr>[a-z_][\w:-]*) \s* ( = \s*
-        ( ' (?<onequote> (\\'|[^'])* ) '
-        | " (?<dblquote> (\\"|[^"])* ) "
-        | (?<noquote> [^\s>]+ )
-        ) )?
-    | \{\{ (?<ins> .*?) \}\}
-}xn;
-
 # Компилирует шаблоны в код perl
 sub _compile_sige {
 	my ($self, $code, $pkg) = @_;
@@ -70,6 +59,14 @@ sub _compile_sige {
 
     # Локальные переменные для for
     my %VAR;
+
+    # Возвращает номер строки и символа
+    my $on = sub {
+        my $line;
+        $line++ while $` =~ /\n/g;
+        my $char = $';
+        "$pkg#$line/$char:"
+    };
 
     # Переводит выражение шаблонизатора в выражение perl
     my $exp = sub {
@@ -97,7 +94,7 @@ sub _compile_sige {
             | '(\\'|[^'])*'
         }{
             $res->()
-        }xinge;
+        }axinge;
         $y
     };
 
@@ -116,7 +113,10 @@ sub _compile_sige {
     my $end_tags = sub {
         my @add;
 
-        if(DEBUG) { require "DDP.pm"; DDP::p(my $x=["end_tags", @_]); }
+        if(DEBUG) { require "DDP.pm";
+            my ($pkg, $file, $line) = caller(0);
+            DDP::p(my $x=["end_tags $pkg at $line", @_]); 
+        }
 
         for(@_) {
             my $stash = $_->[1];
@@ -125,10 +125,10 @@ sub _compile_sige {
                 push @add, "'): (), '";
             }
             elsif(exists $stash->{elseif}) {
-                push @add, "'): do{$stash->{elseif}} ? ('";
+                push @add, "'): (), '";
             }
             elsif(exists $stash->{else}) {
-                push @add, "'): ('";
+                push @add, "'), '";
             }
 
             if(my $for = $stash->{for}) {
@@ -142,13 +142,20 @@ sub _compile_sige {
     };
 
     my @S;          # Стек тегов
-    my $close_tag;  # Закрывающий тег
+    my $close_tag;  # Закрывающий тег – для атрибутов if и for
     my $routine;    # Текущая подпрограмма
 
     matches $code,
-        qr{<(?<tag> [a-z][\w:-]*) (?<attrs> ($RE_ATTR)*?) \s* (?<inline> /)? >}xino => sub {
-            my ($tag, $attrs, $inline) = @+{qw/tag attrs inline/};
-            $inline = 1 if !defined $inline and $attrs =~ s/\/\z//;
+        qr{ (?<space> [\ \t]+ )?
+            <(?<tag> [a-z_][\w:-]*) (?<attrs> (
+              ' (\\'|[^'])* '
+            | " (\\"|[^"])* "
+            | {{ .*? }}
+            | [^>]
+        )*) >}ainx => sub {
+            my ($before_space, $tag, $attrs) = @+{qw/space tag attrs/};
+            my $inline = $attrs =~ s/\/\z//;
+            $attrs =~ s!\s*$!!;
 
             my $is_pkg = $tag =~ /::/;
             $tag = lc $tag unless $is_pkg;
@@ -157,36 +164,50 @@ sub _compile_sige {
             my $elseif;
             my $else;
             my $for;
+            my $last;
 
-            while($attrs =~ m{ $RE_ATTR }xngo) {
+            if(DEBUG) { require 'DDP.pm'; DDP::p(my $x=["<$tag>", {attrs => $attrs, inline => $inline}]); }
+
+            while($attrs =~ m{ \G
+                (?<space> \s*)
+                (?<attr>[a-z_-][\w:-]*) ( \s* = \s*
+                    ( ' (?<onequote> (\\'|[^'])* ) '
+                    | " (?<dblquote> (\\"|[^"])* ) "
+                    | (?<noquote> [^\s>]+ )
+                    ) )?
+                | \{\{ (?<ins> .*?) \}\}
+            }axng) {
+                $last = length $';
                 my ($space, $attr) = @+{qw/space attr/};
 
                 if(DEBUG) { require 'DDP.pm'; DDP::p(my $x=["attr", $space, $attr]); }
 
-                if($attr eq "if") {
-                    die "The if attribute is already present in the <$tag>" if defined $if;
+                die "${\$on->()} Double quote not supported in attr $attr" if exists $+{dblquote} and $attr ~~ [qw/if else-if for/];
 
-                    $if = $exp->($+{onequote} // $+{noquote} // $+{dblquote});
+                if($attr eq "if") {
+                    die "${\ $on->()} The if attribute is already present in the <$tag>" if defined $if;
+
+                    $if = $exp->($+{onequote} // $+{noquote});
                 }
                 elsif($attr eq "else-if") {
-                    die "The else-if attribute is already present in the <$tag>" if defined $elseif;
+                    die "${\ $on->()} The else-if attribute is already present in the <$tag>" if defined $elseif;
 
-                    $elseif = $exp->($+{onequote} // $+{noquote} // $+{dblquote});
+                    $elseif = $exp->($+{onequote} // $+{noquote});
                 }
                 elsif($attr eq "else") {
-                    die "The else attribute is already present in the <$tag>" if defined $else;
+                    die "${\ $on->()} The else attribute is already present in the <$tag>" if defined $else;
 
                     $else = 1;
                 }
                 elsif($attr eq "for") {
-                    die "The for attribute is already present in the <$tag>" if defined $for;
+                    die "${\ $on->()} The for attribute is already present in the <$tag>" if defined $for;
 
-                    die "The if-attribute must be placed after for-attribute in the <$tag>" if defined $if;
+                    die "${\ $on->()} The if-attribute must be placed after for-attribute in the <$tag>" if defined $if;
 
-                    $for = $+{onequote} // $+{noquote} // $+{dblquote};
-                    my ($var, $data) = $for =~ /^\s*([a-z]\w*)\s*in\s*(.*)\s*$/is;
-                    die "Use for='variable in ...'!" unless defined $var;
-                    die "This variable $var is used!" if exists $VAR{$var};
+                    $for = $+{onequote} // $+{noquote};
+                    my ($var, $data) = $for =~ /^\s*([a-z]\w*)\s*in\s*(.*)\s*$/ais;
+                    die "${\ $on->()} Use for='variable in ...'!" unless defined $var;
+                    die "${\ $on->()} This variable $var is used!" if exists $VAR{$var};
                     $VAR{$var} = 1;
                     $for = [$var, $data];
                 }
@@ -222,14 +243,23 @@ sub _compile_sige {
                 }
             }
 
+            die join '', "<$tag$attrs>\n", (' ' x (1 + length($tag) + length($attrs) - $last)), "^\n---" if $last;
 
-            die "Attributes for and else is ambigous" if $for && $else;
-            die "Attributes for and else-if is ambigous" if $for && $elseif;
-            die "Attributes if and else-if is ambigous" if $if && $elseif;
-            die "Attributes if and else is ambigous" if $if && $else;
+            die "${\ $on->()} Attributes for and else is ambigous" if $for && $else;
+            die "${\ $on->()} Attributes for and else-if is ambigous" if $for && $elseif;
+            die "${\ $on->()} Attributes if and else-if is ambigous" if $if && $elseif;
+            die "${\ $on->()} Attributes if and else is ambigous" if $if && $else;
 
-            my $close_tag_end = $close_tag? $end_tags->($close_tag): undef;
-            undef $close_tag;
+            my @close_tag_end;
+            if($close_tag) {
+                if($else || $elseif) {
+                    my $stash = $close_tag->[1];
+                    if($stash->{if}) {delete $stash->{if}}
+                    elsif($stash->{elseif}) {delete $stash->{elseif}}
+                }
+                @close_tag_end = $end_tags->($close_tag);
+                undef $close_tag;
+            }
 
             my $stash;
 
@@ -246,71 +276,81 @@ sub _compile_sige {
             }: do { $stash->{end_tag} = "</$tag>"; "<$tag@attrs>" };
 
             # Вначале if, чтобы если есть и for - построить в for if
+            my @add;
             if($if) {
-                $atag = "', do{$if}? ('$atag";
+                push @add, "', do{$if}? ('";
                 $stash->{if} = 1;
             }
             elsif($elseif) {
-                $stash->{elseif} = $elseif;
+                push @add, "'): do{$elseif}? ('";
+                $stash->{elseif} = 1;
             }
             elsif($else) {
+                push @add, "'): ('";
                 $stash->{else} = 1;
             }
 
             if($for) {
                 my ($var, $data) = @$for;
-                $atag = "', (map { my \$_$var = \$_; '$atag";
+                push @add, "', (map { my \$_$var = \$_; '";
                 $stash->{"for"} = [$var, $exp->($data)];
             }
 
             if(DEBUG) { require "DDP.pm"; DDP::p(my $x=["S, tag, stash", \@S, $tag, $stash]); }
 
-            my @add = $end_tags->(in_tag @S, $tag, $stash);
-            my @single_tag_close;
+            my @intags = $end_tags->(in_tag @S, $tag, $stash);
+            my $etag;
             if(is_single_tag($tag)) {
-                @single_tag_close = $end_tags->([$tag, $stash]);
+                $close_tag = [$tag, $stash];
             }
             elsif($inline) {
-                pop @S;
-                push @single_tag_close,
-                    $stash->{end_tag},
-                    $end_tags->([$tag, $stash]);
+                $close_tag = pop @S;
+                $etag = $stash->{end_tag};
             }
-            "@add$close_tag_end$atag@single_tag_close"
+
+            "@intags@close_tag_end@add$before_space$atag$etag"
         },
-        qr!(?<space> \s*)</ (?<tag> [a-z][\w:-]*) \s*>!ix => sub {
+        qr!(?<space> [\ \t]+ )? </ (?<tag> [a-z_][\w:-]*) \s*>!ainx => sub {
             my ($space, $tag) = @+{qw/space tag/};
             my $is_pkg = $tag =~ /::/;
             $tag = lc $tag unless $is_pkg;
+
+            my @close_tag_end = $close_tag? $end_tags->($close_tag): ();
+
             my @out = out_tag @S, $tag;
             $close_tag = pop @out;
             @out = $end_tags->(@out);
-            "@out$space$close_tag->[1]->{end_tag}"
+            "@out@close_tag_end$space$close_tag->[1]->{end_tag}"
         },
-        qr! \{\{ (?<ins> .*?) (?<nohtml> \!)? (?<space> \s*) \}\} !xs => sub {
+        qr! \{\{ (?<ins> .*?) (?<nohtml> \!)? (?<space> \s*) \}\} !xsn => sub {
             my $ins = $exp->($+{ins});
             exists $+{nohtml} ? "', do {$ins}, '": "', Aion::Format::Html::to_html(do {$ins$+{space}}), '"
         },
         qr{<!--.*?-->}s => sub {
-            my $close = $close_tag? $end_tags->($close_tag): "";
+            my @close = $close_tag? $end_tags->($close_tag): ();
             undef $close_tag;
-            $close
+            @close
         },
         qr!['\\]! => sub {
             "\\$&"
         },
-        qr{^\@(?<name> \w+)[ \t]*\n}mnx => sub {
-            join "", $routine? "'}" : (),
+        qr{ ^ \@(?<name> \w+) [ \t]* \n }amnx => sub {
+            die "${\ $on->()} There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
+
+            my @close_tag = $close_tag? $end_tags->($close_tag): ();
+            undef $close_tag;
+
+            join "", @close_tag,
+            $routine? "'}" : (),
             "sub ", $routine = $+{name}, " {\n\tmy (\$self) = \@_; return join '', '"
         },
         qr!\A! => sub {
             "package $pkg; use common::sense; "
         },
         qr!\z! => sub {
-            die "Not methods in sige!" unless $routine;
-            my @end_tags = $end_tags->(@S, $close_tag? $close_tag: ());
-            die "There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
-            join "", @end_tags, "' } 1;"
+            die "${\ $on->()} Not methods in sige!" unless $routine;
+            die "${\ $on->()} There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
+            join "", $close_tag? $end_tags->($close_tag): (), "' } 1;"
         },
     ;
 }
@@ -379,7 +419,8 @@ File lib/Product/List.pm:
 	
 	<ul>
 	    <li>first
-	    <li class="piase1">&lt;dog&gt;<li class="piase3">&quot;cat&quot;
+	    <li class="piase1">&lt;dog&gt;
+	    <li class="piase3">&quot;cat&quot;
 	</ul>
 	
 	';
@@ -534,7 +575,7 @@ File lib/Ex/If.pm:
 	@full
 	<a if = 'x > 0' />
 	<b else-if = x<0 />
-	<i else>-</i>
+	<i else />
 	
 	@elseif
 	<a if = 'x > 0' />
@@ -545,27 +586,35 @@ File lib/Ex/If.pm:
 	<i else>-</i>
 	
 	@many
-	<a if = 'x == 1' />
-	<b else-if = x==2 />
-	<с else-if = x==3 >{{x}}</c>
+	<a if = x==1><hr if=x><e else>*</e></a>
+	<b else-if = x==2/>
+	<c else-if = x==3 >{{x}}</c>
 	<d else-if = x==4 />
 	<e else />
 
 
 
 	require Ex::If;
-	Ex::If->new(x=> 1)->full # => <a></a>\n\n
-	Ex::If->new(x=>-1)->full # => <b></b>\n\n
-	Ex::If->new(x=> 0)->full # => <i>-</i>\n\n
+	Ex::If->new(x=> 1)->full # => <a></a>\n
+	Ex::If->new(x=>-1)->full # => <b></b>\n
+	Ex::If->new(x=> 0)->full # => <i></i>\n\n
 	
-	Ex::If->new(x=> 1)->ifelse # => <a></a>\n\n
-	Ex::If->new(x=> 0)->ifelse # => <i></i>\n\n
+	Ex::If->new(x=> 1)->elseif # => <a></a>\n
+	Ex::If->new(x=>-1)->elseif # => <b></b>\n\n
+	Ex::If->new(x=> 0)->elseif # -> ""
 	
-	Ex::If->new(x=> 1)->many # => <a></a>\n\n
-	Ex::If->new(x=> 2)->many # => <b></b>\n\n
-	Ex::If->new(x=> 3)->many # => <c>3</c>\n\n
-	Ex::If->new(x=> 4)->many # => <d></d>\n\n
-	Ex::If->new(x=> 5)->many # => <e></e>\n\n
+	Ex::If->new(x=> 1)->ifelse # => <a></a>\n
+	Ex::If->new(x=> 0)->ifelse # => <i>-</i>\n\n
+	
+	Ex::If->new(x=> 1)->many # => <a><hr></a>\n
+	Ex::If->new(x=> 2)->many # => <b></b>\n
+	Ex::If->new(x=> 3)->many # => <c>3</c>\n
+	Ex::If->new(x=> 4)->many # => <d></d>\n
+	Ex::If->new(x=> 5)->many # => <e></e>\n
+
+eval { Aion::Sige->I<compile>sige("\@x\n<a if=1 if=2 />") }; $@  # ~> The if attribute is already present in the <a>
+
+eval { Aion::Sige->I<compile>sige("\@x\n<a if="1" />") }; $@  # ~> Double quote not supported in attr C<if> in the <a>
 
 =head2 Attribute for
 
