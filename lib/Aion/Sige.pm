@@ -182,7 +182,7 @@ sub compile_sige {
 
                 if(DEBUG) { require 'DDP.pm'; DDP::p(my $x=["attr", $space, $attr]); }
 
-                die "${\$on->()} Double quote not supported in attr $attr" if exists $+{dblquote} and $attr ~~ [qw/if else-if for/];
+                die "${\ $on->()} Double quote not supported in attr $attr" if exists $+{dblquote} and $attr ~~ [qw/if else-if for/];
 
                 if($attr eq "if") {
                     die "${\ $on->()} The if attribute is already present in the <$tag>" if defined $if;
@@ -648,7 +648,7 @@ File lib/Ex/If.pm:
 	
 	eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@  # ~> A 2:4 The if attribute is already present in the <a>
 	
-	eval { Aion::Sige->compile_sige("\@x\n<a if="1" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>
+	eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>
 
 =head2 Attribute for
 
