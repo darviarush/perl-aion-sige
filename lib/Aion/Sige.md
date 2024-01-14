@@ -76,10 +76,44 @@ Tags with a dash in their name are considered classes and are converted accordin
 
 # SUBROUTINES
 
-## sige ($pkg, $template)
+## import_with ($pkg)
+
+Fires when a role is attached to a class. Compiles sige code into perl code so that `@routine` becomes class methods.
+
+## compile_sige ($template, $pkg)
 
 Compile the template to perl-code and evaluate it into the package.
 
+## require_sige ($pkg)
+
+Compiles sige in the specified package.
+
+If you have enough rights, it creates a file next to the $pkg-module file and the `.pm$sige` extension, then connects this file using `require` and deletes it. This is done to provide an adequate stack trace.
+
+If there are not enough rights, then `eval` will simply be executed.
+
+File lib/RequireSige.pm:
+```perl
+package RequireSige;
+use Aion;
+with Aion::Sige;
+1;
+__DATA__
+@render
+{{ &die "---" }}
+```
+
+```perl
+use feature qw/defer/;
+my $perm = (stat "lib")[2] & 07777;
+defer { chmod $perm, "lib" or die "chmod -w lib: $!" }
+
+use Fcntl qw/:mode/;
+chmod $perm & ~(S_IWUSR | S_IWGRP | S_IWOTH), "lib" or die "chmod -w lib: $!";
+
+require './lib/RequireSige.pm';
+eval { RequireSige->render }; $@   # ~> ^--- at \(eval \d+\)
+```
 
 # SIGE LANGUAGE
 
@@ -257,13 +291,15 @@ Ex::If->new(x=> 2)->many # => <b></b>\n
 Ex::If->new(x=> 3)->many # => <c>3</c>\n
 Ex::If->new(x=> 4)->many # => <d></d>\n
 Ex::If->new(x=> 5)->many # => <e></e>\n
+
+eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@  # ~> A 2:4 The if attribute is already present in the <a>
+
+eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>
 ```
 
-eval { Aion::Sige->_compile_sige("\@x\n<a if=1 if=2 />") }; $@  # ~> The if attribute is already present in the <a>
-
-eval { Aion::Sige->_compile_sige("\@x\n<a if="1" />") }; $@  # ~> Double quote not supported in attr `if` in the <a>
-
 ## Attribute for
+
+
 
 ## Tags without close
 

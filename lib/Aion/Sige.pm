@@ -13,11 +13,11 @@ use Aion -role;
 sub import_with {
 	my ($self, $pkg) = @_;
 
-	$self->_require_sige($pkg)
+	$self->require_sige($pkg)
 }
 
 # Определяет, где находится код шаблона: в __DATA__ или в соседнем *.html, компилит и присоединяет к своему пакету его функции
-sub _require_sige {
+sub require_sige {
 	my ($self, $pkg) = @_;
     my $pm = "lib/" . from_pkg $pkg;
     my $html = $pm =~ s/\.(\w+)$/.html/r;
@@ -33,11 +33,11 @@ sub _require_sige {
         ("\n" x $c) . $data
     }: cat $html;
 
-    my $sige = $self->_compile_sige($code, $pkg);
+    my $sige = $self->compile_sige($code, $pkg);
 
     print STDERR "\n\n$sige\n\n" if DEBUG;
 
-    my $sig = './' . ($pm =~ s/\.(\w+)$/.sige/r);
+    my $sig = './' . ($pm =~ s/\.(\w+)$/.pm\$sige/r);
     $sig = eval { mkpath $sig };
     if(defined $sig and open my $f, ">:utf8", $sig) {
         print $f $sige;
@@ -51,7 +51,7 @@ sub _require_sige {
 }
 
 # Компилирует шаблоны в код perl
-sub _compile_sige {
+sub compile_sige {
 	my ($self, $code, $pkg) = @_;
 
     # Без пробелов при вставке в строки массивов
@@ -63,9 +63,9 @@ sub _compile_sige {
     # Возвращает номер строки и символа
     my $on = sub {
         my $line;
-        $line++ while $` =~ /\n/g;
+        $line++ while $_[1] =~ /\n/g;
         my $char = $';
-        "$pkg#$line/$char:"
+        "$pkg $line:$char "
     };
 
     # Переводит выражение шаблонизатора в выражение perl
@@ -437,9 +437,43 @@ Tags with a dash in their name are considered classes and are converted accordin
 
 =head1 SUBROUTINES
 
-=head2 sige ($pkg, $template)
+=head2 import_with ($pkg)
+
+Fires when a role is attached to a class. Compiles sige code into perl code so that C<@routine> becomes class methods.
+
+=head2 compile_sige ($template, $pkg)
 
 Compile the template to perl-code and evaluate it into the package.
+
+=head2 require_sige ($pkg)
+
+Compiles sige in the specified package.
+
+If you have enough rights, it creates a file next to the $pkg-module file and the C<.pm$sige> extension, then connects this file using C<require> and deletes it. This is done to provide an adequate stack trace.
+
+If there are not enough rights, then C<eval> will simply be executed.
+
+File lib/RequireSige.pm:
+
+	package RequireSige;
+	use Aion;
+	with Aion::Sige;
+	1;
+	__DATA__
+	@render
+	{{ &die "---" }}
+
+
+
+	use feature qw/defer/;
+	my $perm = (stat "lib")[2] & 07777;
+	defer { chmod $perm, "lib" or die "chmod -w lib: $!" }
+	
+	use Fcntl qw/:mode/;
+	chmod $perm & ~(S_IWUSR | S_IWGRP | S_IWOTH), "lib" or die "chmod -w lib: $!";
+	
+	require './lib/RequireSige.pm';
+	eval { RequireSige->render }; $@   # ~> ^--- at \(eval \d+\)
 
 =head1 SIGE LANGUAGE
 
@@ -611,16 +645,20 @@ File lib/Ex/If.pm:
 	Ex::If->new(x=> 3)->many # => <c>3</c>\n
 	Ex::If->new(x=> 4)->many # => <d></d>\n
 	Ex::If->new(x=> 5)->many # => <e></e>\n
-
-eval { Aion::Sige->I<compile>sige("\@x\n<a if=1 if=2 />") }; $@  # ~> The if attribute is already present in the <a>
-
-eval { Aion::Sige->I<compile>sige("\@x\n<a if="1" />") }; $@  # ~> Double quote not supported in attr C<if> in the <a>
+	
+	eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@  # ~> A 2:4 The if attribute is already present in the <a>
+	
+	eval { Aion::Sige->compile_sige("\@x\n<a if="1" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>
 
 =head2 Attribute for
 
 =head2 Tags without close
 
-=head2 Comments
+=over
+
+=item 1. =head2 Comments
+
+=back
 
 =head1 AUTHOR
 

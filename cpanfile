@@ -13,5 +13,5 @@ on 'test' => sub {
 requires 'config';
 requires 'common::sense';
 requires 'Aion', '0.1';
-requires 'Aion::Format', '0.0.9';
+requires 'Aion::Format', '0.0.10';
 requires 'Aion::Fs', '0.0.6';
