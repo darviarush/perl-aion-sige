@@ -1,4 +1,4 @@
-use common::sense; use open qw/:std :utf8/;  use Carp qw//; use File::Basename qw//; use File::Slurper qw//; use File::Spec qw//; use File::Path qw//; use Scalar::Util qw//;  use Test::More 0.98;  BEGIN {     $SIG{__DIE__} = sub {         my ($s) = @_;         if(ref $s) {             $s->{STACKTRACE} = Carp::longmess "?" if "HASH" eq Scalar::Util::reftype $s;             die $s;         } else {             die Carp::longmess defined($s)? $s: "undef"         }     };      my $t = File::Slurper::read_text(__FILE__);     my $s =  '/tmp/.liveman/perl-aion-sige/aion!sige'    ;     File::Path::rmtree($s) if -e $s;     File::Path::mkpath($s);     chdir $s or die "chdir $s: $!";      while($t =~ /^#\@> (.*)\n((#>> .*\n)*)#\@< EOF\n/gm) {         my ($file, $code) = ($1, $2);         $code =~ s/^#>> //mg;         File::Path::mkpath(File::Basename::dirname($file));         File::Slurper::write_text($file, $code);     }  } # # NAME
+use common::sense; use open qw/:std :utf8/; use Test::More 0.98; sub _mkpath_ { my ($p) = @_; length($`) && !-e $`? mkdir($`, 0755) || die "mkdir $`: $!": () while $p =~ m!/!g; $p } BEGIN { use Scalar::Util qw//; use Carp qw//; $SIG{__DIE__} = sub { my ($s) = @_; if(ref $s) { $s->{STACKTRACE} = Carp::longmess "?" if "HASH" eq Scalar::Util::reftype $s; die $s } else {die Carp::longmess defined($s)? $s: "undef" }}; my $t = `pwd`; chop $t; $t .= '/' . __FILE__; my $s = '/tmp/.liveman/perl-aion-sige!aion!sige/'; `rm -fr '$s'` if -e $s; chdir _mkpath_($s) or die "chdir $s: $!"; open my $__f__, "<:utf8", $t or die "Read $t: $!"; read $__f__, $s, -s $__f__; close $__f__; while($s =~ /^#\@> (.*)\n((#>> .*\n)*)#\@< EOF\n/gm) { my ($file, $code) = ($1, $2); $code =~ s/^#>> //mg; open my $__f__, ">:utf8", _mkpath_($file) or die "Write $file: $!"; print $__f__ $code; close $__f__; } } # # NAME
 # 
 # Aion::Sige - templater (html-like language, it like vue)
 # 
@@ -292,20 +292,72 @@ require Ex::If;
 ::is scalar do {Ex::If->new(x=> 4)->many}, "<d></d>\n", 'Ex::If->new(x=> 4)->many # => <d></d>\n';
 ::is scalar do {Ex::If->new(x=> 5)->many}, "<e></e>\n", 'Ex::If->new(x=> 5)->many # => <e></e>\n';
 
-::like scalar do {eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@}, qr!A 2:4 The if attribute is already present in the <a>!, 'eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@  # ~> A 2:4 The if attribute is already present in the <a>';
-
-::like scalar do {eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@}, qr!A 2:4 Double quote not supported in attr `if` in the <a>!, 'eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>';
-
 # 
 # ## Attribute for
 # 
-# 
+done_testing; }; subtest 'Attribute for' => sub { 
+eval Aion::Sige->compile_sige("\@for\n<li for = 'i in [1,2]'>{{i}}</li>", "A");
+::is scalar do {A->for}, "<li>1</li><li>2</li>", 'A->for  # => <li>1</li><li>2</li>';
+
 # 
 # ## Tags without close
 # 
-# 1. 
+# 1. Tags area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr are displayed without a closing tag or slash.
+# 2. A closing tag is added to HTML tags.
+# 3. The `content => ...` property is not passed to perl-module tags.
+# 
+# ## Tags as Perl-module
+# 
+# Tags with `::` use other perl-modules.
+# 
+# File lib/Hello.pm:
+#@> lib/Hello.pm
+#>> package Hello;
+#>> use Aion;
+#>> with qw/Aion::Sige/;
+#>> has world => (is => 'ro');
+#>> 1;
+#>> __DATA__
+#>> @render
+#>> Hello, {{world}}
+#@< EOF
+# 
+# File lib/Hello/World.pm:
+#@> lib/Hello/World.pm
+#>> package Hello::World;
+#>> use Aion;
+#>> with qw/Aion::Sige/;
+#>> 1;
+#>> __DATA__
+#>> @render
+#>> <Hello:: world = "{{'World'}}!"   />
+#>> <Hello:: world = "six"   />
+#@< EOF
+# 
+done_testing; }; subtest 'Tags as Perl-module' => sub { 
+require Hello::World;
+::is scalar do {Hello::World->render}, "Hello, World!\n\nHello, six\n\n", 'Hello::World->render  # => Hello, World!\n\nHello, six\n\n';
+
+::is scalar do {Hello->new(world => "mister")->render}, "Hello, mister\n", 'Hello->new(world => "mister")->render  # => Hello, mister\n';
+
 # 
 # ## Comments
+# 
+# Html comments as is `<!-- ... -->` removes from text.
+# 
+done_testing; }; subtest 'Comments' => sub { 
+eval Aion::Sige->compile_sige("\@remark\n1<!-- x -->2", "A");
+::is scalar do {A->remark}, "12", 'A->remark  # => 12';
+
+# 
+# ## Exceptions
+# 
+done_testing; }; subtest 'Exceptions' => sub { 
+::like scalar do {eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />\n\n", "A") }; $@}, qr!A 2:9 The if attribute is already present in the <a>!, 'eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />\n\n", "A") }; $@  # ~> A 2:9 The if attribute is already present in the <a>';
+
+::like scalar do {eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@}, qr!A 2:4 Double quote not supported in attr if in the <a>!, 'eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr if in the <a>';
+::like scalar do {eval { Aion::Sige->compile_sige("\@x\n<x if=1><a else-if=\"1\" />", "A") }; $@}, qr!Double quote not supported in attr else-if in the <a>!, 'eval { Aion::Sige->compile_sige("\@x\n<x if=1><a else-if=\"1\" />", "A") }; $@  # ~> Double quote not supported in attr else-if in the <a>';
+
 # 
 # # AUTHOR
 # 

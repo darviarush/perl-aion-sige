@@ -62,10 +62,11 @@ sub compile_sige {
 
     # Возвращает номер строки и символа
     my $on = sub {
-        my $line;
-        $line++ while $_[1] =~ /\n/g;
-        my $char = $';
-        "$pkg $line:$char "
+        my ($pos) = @_;
+        my $line = 1; my $xpos;
+        $xpos = length($`), $line++ while $code =~ /\n/g and length($`) < $pos;
+        my $char = $pos - $xpos + 1;
+        "$pkg $line:$char"
     };
 
     # Переводит выражение шаблонизатора в выражение perl
@@ -145,7 +146,7 @@ sub compile_sige {
     my $close_tag;  # Закрывающий тег – для атрибутов if и for
     my $routine;    # Текущая подпрограмма
 
-    matches $code,
+    my $sige = matches $code,
         qr{ (?<space> [\ \t]+ )?
             <(?<tag> [a-z_][\w:-]*) (?<attrs> (
               ' (\\'|[^'])* '
@@ -154,6 +155,7 @@ sub compile_sige {
             | [^>]
         )*) >}ainx => sub {
             my ($before_space, $tag, $attrs) = @+{qw/space tag attrs/};
+            my $pos = length($`) + 1 + length($tag);
             my $inline = $attrs =~ s/\/\z//;
             $attrs =~ s!\s*$!!;
 
@@ -177,37 +179,38 @@ sub compile_sige {
                     ) )?
                 | \{\{ (?<ins> .*?) \}\}
             }axng) {
-                $last = length $';
                 my ($space, $attr) = @+{qw/space attr/};
+                my $apos = $pos + length $`;
+                $last = length $';
 
                 if(DEBUG) { require 'DDP.pm'; DDP::p(my $x=["attr", $space, $attr]); }
 
-                die "${\ $on->()} Double quote not supported in attr $attr" if exists $+{dblquote} and $attr ~~ [qw/if else-if for/];
+                die "${\ $on->($apos)} Double quote not supported in attr $attr in the <$tag>" if exists $+{dblquote} and $attr ~~ [qw/if else-if for/];
 
                 if($attr eq "if") {
-                    die "${\ $on->()} The if attribute is already present in the <$tag>" if defined $if;
+                    die "${\ $on->($apos)} The if attribute is already present in the <$tag>" if defined $if;
 
                     $if = $exp->($+{onequote} // $+{noquote});
                 }
                 elsif($attr eq "else-if") {
-                    die "${\ $on->()} The else-if attribute is already present in the <$tag>" if defined $elseif;
+                    die "${\ $on->($apos)} The else-if attribute is already present in the <$tag>" if defined $elseif;
 
                     $elseif = $exp->($+{onequote} // $+{noquote});
                 }
                 elsif($attr eq "else") {
-                    die "${\ $on->()} The else attribute is already present in the <$tag>" if defined $else;
+                    die "${\ $on->($apos)} The else attribute is already present in the <$tag>" if defined $else;
 
                     $else = 1;
                 }
                 elsif($attr eq "for") {
-                    die "${\ $on->()} The for attribute is already present in the <$tag>" if defined $for;
+                    die "${\ $on->($apos)} The for attribute is already present in the <$tag>" if defined $for;
 
-                    die "${\ $on->()} The if-attribute must be placed after for-attribute in the <$tag>" if defined $if;
+                    die "${\ $on->($apos)} The if-attribute must be placed after for-attribute in the <$tag>" if defined $if;
 
-                    $for = $+{onequote} // $+{noquote};
+                    $for = $+{onequote};
                     my ($var, $data) = $for =~ /^\s*([a-z]\w*)\s*in\s*(.*)\s*$/ais;
-                    die "${\ $on->()} Use for='variable in ...'!" unless defined $var;
-                    die "${\ $on->()} This variable $var is used!" if exists $VAR{$var};
+                    die "${\ $on->($apos)} Use for='variable in ...'!" unless defined $var;
+                    die "${\ $on->($apos)} This variable $var is used!" if exists $VAR{$var};
                     $VAR{$var} = 1;
                     $for = [$var, $data];
                 }
@@ -243,12 +246,9 @@ sub compile_sige {
                 }
             }
 
-            die join '', "<$tag$attrs>\n", (' ' x (1 + length($tag) + length($attrs) - $last)), "^\n---" if $last;
+            die "${\ $on->($pos + length($attrs) - $last)} Syntax attributes error in <$tag>\n" if $last;
 
-            die "${\ $on->()} Attributes for and else is ambigous" if $for && $else;
-            die "${\ $on->()} Attributes for and else-if is ambigous" if $for && $elseif;
-            die "${\ $on->()} Attributes if and else-if is ambigous" if $if && $elseif;
-            die "${\ $on->()} Attributes if and else is ambigous" if $if && $else;
+            die join "", $on->($pos), " Attributes for and ", $if? "if": $elseif? "else-if": "else", " is ambigous" if $for && ($if || $elseif || $else);
 
             my @close_tag_end;
             if($close_tag) {
@@ -329,13 +329,14 @@ sub compile_sige {
         qr{<!--.*?-->}s => sub {
             my @close = $close_tag? $end_tags->($close_tag): ();
             undef $close_tag;
-            @close
+            "@close"
         },
         qr!['\\]! => sub {
             "\\$&"
         },
         qr{ ^ \@(?<name> \w+) [ \t]* \n }amnx => sub {
-            die "${\ $on->()} There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
+            my $pos = length $`;
+            die "${\ $on->($pos)} There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
 
             my @close_tag = $close_tag? $end_tags->($close_tag): ();
             undef $close_tag;
@@ -344,15 +345,14 @@ sub compile_sige {
             $routine? "'}" : (),
             "sub ", $routine = $+{name}, " {\n\tmy (\$self) = \@_; return join '', '"
         },
-        qr!\A! => sub {
-            "package $pkg; use common::sense; "
-        },
-        qr!\z! => sub {
-            die "${\ $on->()} Not methods in sige!" unless $routine;
-            die "${\ $on->()} There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
-            join "", $close_tag? $end_tags->($close_tag): (), "' } 1;"
-        },
     ;
+
+    my $pos = length $code;
+    die "${\ $on->($pos)} Not methods in sige!" unless $routine;
+    die "${\ $on->($pos)} There are still unclosed tags: " . join "", map "<$_->[0]>", @S if @S;
+    my @close = $close_tag? $end_tags->($close_tag): ();
+
+    "package $pkg; use common::sense; $sige@close' } 1;"
 }
 
 1;
@@ -645,20 +645,70 @@ File lib/Ex/If.pm:
 	Ex::If->new(x=> 3)->many # => <c>3</c>\n
 	Ex::If->new(x=> 4)->many # => <d></d>\n
 	Ex::If->new(x=> 5)->many # => <e></e>\n
-	
-	eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@  # ~> A 2:4 The if attribute is already present in the <a>
-	
-	eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>
 
 =head2 Attribute for
+
+	eval Aion::Sige->compile_sige("\@for\n<li for = 'i in [1,2]'>{{i}}</li>", "A");
+	A->for  # => <li>1</li><li>2</li>
 
 =head2 Tags without close
 
 =over
 
-=item 1. =head2 Comments
+=item 1. Tags area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr are displayed without a closing tag or slash.
+
+=item 2. A closing tag is added to HTML tags.
+
+=item 3. The C<< content =E<gt> ... >> property is not passed to perl-module tags.
 
 =back
+
+=head2 Tags as Perl-module
+
+Tags with C<::> use other perl-modules.
+
+File lib/Hello.pm:
+
+	package Hello;
+	use Aion;
+	with qw/Aion::Sige/;
+	has world => (is => 'ro');
+	1;
+	__DATA__
+	@render
+	Hello, {{world}}
+
+File lib/Hello/World.pm:
+
+	package Hello::World;
+	use Aion;
+	with qw/Aion::Sige/;
+	1;
+	__DATA__
+	@render
+	<Hello:: world = "{{'World'}}!"   />
+	<Hello:: world = "six"   />
+
+
+
+	require Hello::World;
+	Hello::World->render  # => Hello, World!\n\nHello, six\n\n
+	
+	Hello->new(world => "mister")->render  # => Hello, mister\n
+
+=head2 Comments
+
+Html comments as is C<< E<lt>!-- ... --E<gt> >> removes from text.
+
+	eval Aion::Sige->compile_sige("\@remark\n1<!-- x -->2", "A");
+	A->remark  # => 12
+
+=head2 Exceptions
+
+	eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />\n\n", "A") }; $@  # ~> A 2:9 The if attribute is already present in the <a>
+	
+	eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr if in the <a>
+	eval { Aion::Sige->compile_sige("\@x\n<x if=1><a else-if=\"1\" />", "A") }; $@  # ~> Double quote not supported in attr else-if in the <a>
 
 =head1 AUTHOR
 

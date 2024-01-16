@@ -291,21 +291,73 @@ Ex::If->new(x=> 2)->many # => <b></b>\n
 Ex::If->new(x=> 3)->many # => <c>3</c>\n
 Ex::If->new(x=> 4)->many # => <d></d>\n
 Ex::If->new(x=> 5)->many # => <e></e>\n
-
-eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />", "A") }; $@  # ~> A 2:4 The if attribute is already present in the <a>
-
-eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr `if` in the <a>
 ```
 
 ## Attribute for
 
-
+```perl
+eval Aion::Sige->compile_sige("\@for\n<li for = 'i in [1,2]'>{{i}}</li>", "A");
+A->for  # => <li>1</li><li>2</li>
+```
 
 ## Tags without close
 
-1. 
+1. Tags area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr are displayed without a closing tag or slash.
+2. A closing tag is added to HTML tags.
+3. The `content => ...` property is not passed to perl-module tags.
+
+## Tags as Perl-module
+
+Tags with `::` use other perl-modules.
+
+File lib/Hello.pm:
+```perl
+package Hello;
+use Aion;
+with qw/Aion::Sige/;
+has world => (is => 'ro');
+1;
+__DATA__
+@render
+Hello, {{world}}
+```
+
+File lib/Hello/World.pm:
+```perl
+package Hello::World;
+use Aion;
+with qw/Aion::Sige/;
+1;
+__DATA__
+@render
+<Hello:: world = "{{'World'}}!"   />
+<Hello:: world = "six"   />
+```
+
+```perl
+require Hello::World;
+Hello::World->render  # => Hello, World!\n\nHello, six\n\n
+
+Hello->new(world => "mister")->render  # => Hello, mister\n
+```
 
 ## Comments
+
+Html comments as is `<!-- ... -->` removes from text.
+
+```perl
+eval Aion::Sige->compile_sige("\@remark\n1<!-- x -->2", "A");
+A->remark  # => 12
+```
+
+## Exceptions
+
+```perl
+eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />\n\n", "A") }; $@  # ~> A 2:9 The if attribute is already present in the <a>
+
+eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr if in the <a>
+eval { Aion::Sige->compile_sige("\@x\n<x if=1><a else-if=\"1\" />", "A") }; $@  # ~> Double quote not supported in attr else-if in the <a>
+```
 
 # AUTHOR
 
