@@ -369,4 +369,4 @@ Yaroslav O. Kosmina <dart@cpan.org>
 
 # COPYRIGHT
 
-Aion::Sige is copyright © 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved.
+Aion::Sige is copyright (c) 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved.
