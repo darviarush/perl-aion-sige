@@ -5,7 +5,10 @@ use Aion::Format qw/matches/;
 use Aion::Format::Html qw/in_tag is_single_tag out_tag to_html/;
 use Aion::Fs qw/from_pkg cat lay mkpath/;
 
+# Дебаг
 use config DEBUG => 0;
+# Добавить комментарии о том, что нужно откомментировать
+use config DEV => 0;
 
 use Aion -role;
 
