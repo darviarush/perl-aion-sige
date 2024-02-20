@@ -1,6 +1,7 @@
+!ru:en
 # NAME
 
-Aion::Sige - templater (html-like language, it like vue)
+Aion::Sige - шаблонизатор html-подобного языка vue
 
 # VERSION
 
@@ -68,29 +69,29 @@ Product->new(caption => "tiger", list => [[1, '<dog>'], [3, '"cat"']])->render #
 
 # DESCRIPTION
 
-Aion::Sige parses html in the \__DATA__ section or in the html file of the same name located next to the module.
+Aion::Sige анализирует html в разделе \__DATA__ или в одноименном html-файле, расположенном рядом с модулем.
 
-Attribute values ​​enclosed in single quotes are calculated. Attribute values ​​without quotes are also calculated. They must not have spaces.
+Вычисляются значения атрибутов, заключенные в одинарные кавычки. Также рассчитываются значения атрибутов без кавычек. В них не должно быть пробелов.
 
-Tags with a dash in their name are considered classes and are converted accordingly: `<Product::List list=list>` to `use Product::List; Product::List->new(list => $self->list)->render`.
+Теги с дефисом в названии считаются классами и соответствующим образом преобразуются: `<Product::List list=list>` в `use Product::List; Product::List->new(list => $self->list)->render`.
 
 # SUBROUTINES
 
 ## import_with ($pkg)
 
-Fires when a role is attached to a class. Compiles sige code into perl code so that `@routine` becomes class methods.
+Срабатывает, когда роль прикреплена к классу. Компилирует код sige в код Perl, чтобы `@routine` стали методами класса.
 
 ## compile_sige ($template, $pkg)
 
-Compile the template to perl-code and evaluate it into the package.
+Компилирует шаблон в Perl-код и выполняет его в пакете.
 
 ## require_sige ($pkg)
 
-Compiles sige in the specified package.
+Компилирует sige в указанный пакет.
 
-If you have enough rights, it creates a file next to the $pkg-module file and the `.pm$sige` extension, then connects this file using `require` and deletes it. This is done to provide an adequate stack trace.
+Если достаточно прав, он создает одноимённый файл рядом с файлом $pkg-module и расширением `.pm$sige`, затем подключает этот файл с помощью `require` и удаляет его. Это делается для обеспечения адекватной трассировки стека.
 
-If there are not enough rights, then `eval` will simply be executed.
+Если прав недостаточно, то просто выполнится `eval`.
 
 File lib/RequireSige.pm:
 ```perl
@@ -117,7 +118,7 @@ eval { RequireSige->render }; $@   # ~> ^--- at \(eval \d+\)
 
 # SIGE LANGUAGE
 
-The template code is located in the `*.html` file of the same name next to the module or in the `__DATA__` section. But not here and there.
+Код шаблона находится в одноименном файле `*.html` рядом с модулем или в разделе `__DATA__`. Но в каком-то одном месте.
 
 File lib/Ex.pm:
 ```perl
@@ -142,7 +143,7 @@ $@   # ~> The sige code in __DATA__ and in \*\.html!
 
 ## Subroutine
 
-From the beginning of the line and the @ symbol, methods begin that can be called on the package:
+С начала строки и символа @ начинаются методы, которые можно вызвать из текущего пакета:
 
 File lib/ExHtml.pm:
 ```perl
@@ -168,7 +169,7 @@ ExHtml->mix    # -> "890\n"
 
 ## Evaluate insertions
 
-Expression in `{{ }}` evaluate.
+Выражение в `{{ }}` вычисляются.
 
 File lib/Ex/Insertions.pm:
 ```perl
@@ -217,9 +218,9 @@ Ex::Insertions->new(x => [10, 20])->array   # => 10, 20\n
 
 ## Evaluate attrs
 
-Attributes with values ​​in `""` are considered a string, while those in `''` or without quotes are considered an expression.
+Атрибуты со значениями в `""` считаются строкой, а атрибуты в `''` или без кавычек считаются выражением.
 
-If value of attribute is `undef`, then attribute is'nt show.
+Если значение атрибута — `undef`, то атрибут не рендерится.
 
 File lib/Ex/Attrs.pm:
 ```perl
@@ -302,13 +303,13 @@ A->for  # => <li>1</li><li>2</li>
 
 ## Tags without close
 
-1. Tags area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr are displayed without a closing tag or slash.
-2. A closing tag is added to HTML tags.
-3. The `content => ...` property is not passed to perl-module tags.
+1. Теги area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr рендерятся без закрывающего тега или косой черты.
+2. К тегам HTML добавляется закрывающий тег.
+3. `content => ...` свойство не передаётся в perl-теги.
 
 ## Tags as Perl-module
 
-Tags with `::` use other perl-modules.
+Теги с `::` используют другие модули Perl.
 
 File lib/Hello.pm:
 ```perl
@@ -343,7 +344,7 @@ Hello->new(world => "mister")->render  # => Hello, mister\n
 
 ## Comments
 
-Html comments as is `<!-- ... -->` removes from text.
+HTML-комментарии, такие как `<!-- ... -->` – удаляются из текста.
 
 ```perl
 eval Aion::Sige->compile_sige("\@remark\n1<!-- x -->2", "A");
