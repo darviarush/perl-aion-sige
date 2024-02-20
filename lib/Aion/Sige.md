@@ -197,7 +197,7 @@ __DATA__
 @math
 {{ x + 10 }}
 @call
-{{ x_plus(x, 3) }}-{{ &x_plus x, 4 }}-{{ self.plus(x, 5) }}
+{{ x_plus(x, 3) }}-{ this.plus(x, 5) }}
 @strings
 {{ "\t" . 'hi!' }}
 @hash
@@ -210,7 +210,7 @@ __DATA__
 require Ex::Insertions;
 Ex::Insertions->new(x => "&")->render       # => &amp; &\n
 Ex::Insertions->new(x => 10)->math          # => 20\n
-Ex::Insertions->new(x => 10)->call          # => 13-14-15\n
+Ex::Insertions->new(x => 10)->call          # => 13-15\n
 Ex::Insertions->new->strings                # => \thi!\n
 Ex::Insertions->new(x => {key => 5})->hash  # => 5\n
 Ex::Insertions->new(x => [10, 20])->array   # => 10, 20\n
