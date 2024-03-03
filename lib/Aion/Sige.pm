@@ -180,7 +180,6 @@ sub compile_sige {
                     | " (?<dblquote> (\\"|[^"])* ) "
                     | (?<noquote> [^\s>]+ )
                     ) )?
-                | \{\{ (?<ins> .*?) \}\}
             }axng) {
                 my ($space, $attr) = @+{qw/space attr/};
                 my $apos = $pos + length $`;
@@ -216,14 +215,6 @@ sub compile_sige {
                     die "${\ $on->($apos)} This variable $var is used!" if exists $VAR{$var};
                     $VAR{$var} = 1;
                     $for = [$var, $data];
-                }
-                elsif(exists $+{ins}) {
-                    my $ins = $exp->($+{ins});
-                    if($is_pkg) {
-                        push @attrs, "${space}do {$ins}, "
-                    } else {
-                        push @attrs, "$space', Aion::Format::Html::to_html(do {$ins}), '"
-                    }
                 }
                 elsif(defined(my $x = $+{onequote} // $+{noquote})) {
                     $x = $exp->($x);
