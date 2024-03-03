@@ -366,7 +366,7 @@ __END__
 
 =head1 NAME
 
-Aion::Sige - templater (html-like language, it like vue)
+Aion::Sige - html template engine for connecting to vue.js
 
 =head1 VERSION
 
@@ -374,7 +374,7 @@ Aion::Sige - templater (html-like language, it like vue)
 
 =head1 SYNOPSIS
 
-File lib/Product.pm:
+lib/Product.pm file:
 
 	package Product;
 	use Aion;
@@ -434,25 +434,25 @@ File lib/Product/List.pm:
 
 Aion::Sige parses html in the __DATA__ section or in the html file of the same name located next to the module.
 
-Attribute values ​​enclosed in single quotes are calculated. Attribute values ​​without quotes are also calculated. They must not have spaces.
+Attribute values enclosed in single quotes are calculated. Attribute values without quotes are also calculated. There should be no spaces in them.
 
-Tags with a dash in their name are considered classes and are converted accordingly: C<< E<lt>Product::List list=listE<gt> >> to C<< use Product::List; Product::List-E<gt>new(list =E<gt> $self-E<gt>list)-E<gt>render >>.
+Tags with a hyphen in their name are considered classes and are converted accordingly: C<< E<lt>Product::List list=listE<gt> >> to C<< use Product::List; Product::List-E<gt>new(list =E<gt> $self-E<gt>list)-E<gt>render >>.
 
 =head1 SUBROUTINES
 
 =head2 import_with ($pkg)
 
-Fires when a role is attached to a class. Compiles sige code into perl code so that C<@routine> becomes class methods.
+Fires when a role is attached to a class. Compiles sige code into Perl code so that C<@routine> becomes a class method.
 
 =head2 compile_sige ($template, $pkg)
 
-Compile the template to perl-code and evaluate it into the package.
+Compiles a template (C<$template>) into Perl code and connects its routines to a package (C<$pkg>).
 
 =head2 require_sige ($pkg)
 
 Compiles sige in the specified package.
 
-If you have enough rights, it creates a file next to the $pkg-module file and the C<.pm$sige> extension, then connects this file using C<require> and deletes it. This is done to provide an adequate stack trace.
+If you have enough permissions, it creates a file next to the $pkg-module file with a C<.pm$sige> extension, then includes that file with C<require> and deletes it. This is done to ensure an adequate stack trace.
 
 If there are not enough rights, then C<eval> will simply be executed.
 
@@ -478,11 +478,11 @@ File lib/RequireSige.pm:
 	require './lib/RequireSige.pm';
 	eval { RequireSige->render }; $@   # ~> ^--- at \(eval \d+\)
 
-=head1 SIGE LANGUAGE
+=head1 SIGELANGUAGE
 
-The template code is located in the C<*.html> file of the same name next to the module or in the C<__DATA__> section. But not here and there.
+The template code is located in the C<*.html> file of the same name next to the module or in the C<__DATA__> section. But not at the same time.
 
-File lib/Ex.pm:
+lib/Ex.pm file:
 
 	package Ex;
 	use Aion;
@@ -503,9 +503,9 @@ File lib/Ex.html:
 
 =head2 Subroutine
 
-From the beginning of the line and the @ symbol, methods begin that can be called on the package:
+The beginning of the line and the @ symbol begin the methods that can be called from the package:
 
-File lib/ExHtml.pm:
+lib/ExHtml.pm file:
 
 	package ExHtml;
 	use Aion;
@@ -527,7 +527,7 @@ File lib/ExHtml.html:
 
 =head2 Evaluate insertions
 
-Expression in C<{{ }}> evaluate.
+The expression in C<{{ }}> is evaluated.
 
 File lib/Ex/Insertions.pm:
 
@@ -573,11 +573,11 @@ File lib/Ex/Insertions.pm:
 	Ex::Insertions->new(x => {key => 5})->hash  # => 5\n
 	Ex::Insertions->new(x => [10, 20])->array   # => 10, 20\n
 
-=head2 Evaluate attrs
+=head2 Evaluate attributes
 
-Attributes with values ​​in C<""> are considered a string, while those in C<''> or without quotes are considered an expression.
+Attributes with values in C<""> are considered a string, and attributes in C<''> or without quotes are considered an expression.
 
-If value of attribute is C<undef>, then attribute is'nt show.
+If the attribute value is C<undef>, then the attribute is not rendered.
 
 File lib/Ex/Attrs.pm:
 
@@ -658,19 +658,19 @@ File lib/Ex/If.pm:
 
 =over
 
-=item 1. Tags area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr are displayed without a closing tag or slash.
+=item 1. The area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr tags are displayed without a closing tag or slash.
 
-=item 2. A closing tag is added to HTML tags.
+=item 2. A closing tag is added to the HTML tags.
 
-=item 3. The C<< content =E<gt> ... >> property is not passed to perl-module tags.
+=item 3. The C<< content =E<gt> ... >> property is not passed to the perl module tags.
 
 =back
 
 =head2 Tags as Perl-module
 
-Tags with C<::> use other perl-modules.
+Tags with C<::> are used by other Perl modules.
 
-File lib/Hello.pm:
+lib/Hello.pm file:
 
 	package Hello;
 	use Aion;
@@ -701,7 +701,7 @@ File lib/Hello/World.pm:
 
 =head2 Comments
 
-Html comments as is C<< E<lt>!-- ... --E<gt> >> removes from text.
+HTML comments (C<< E<lt>!-- ... --E<gt> >>) are removed from the text.
 
 	eval Aion::Sige->compile_sige("\@remark\n1<!-- x -->2", "A");
 	A->remark  # => 12
@@ -711,6 +711,7 @@ Html comments as is C<< E<lt>!-- ... --E<gt> >> removes from text.
 	eval { Aion::Sige->compile_sige("\@x\n<a if=1 if=2 />\n\n", "A") }; $@  # ~> A 2:9 The if attribute is already present in the <a>
 	
 	eval { Aion::Sige->compile_sige("\@x\n<a if=\"1\" />", "A") }; $@  # ~> A 2:4 Double quote not supported in attr if in the <a>
+	
 	eval { Aion::Sige->compile_sige("\@x\n<x if=1><a else-if=\"1\" />", "A") }; $@  # ~> Double quote not supported in attr else-if in the <a>
 
 =head1 AUTHOR
@@ -723,4 +724,4 @@ Yaroslav O. Kosmina L<mailto:dart@cpan.org>
 
 =head1 COPYRIGHT
 
-Aion::Sige is copyright © 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved.
+Aion::Sige is copyright (c) 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved.

@@ -1,0 +1,141 @@
+msgid "# NAME"
+msgstr "#NAME"
+
+msgid "Aion::Sige - шаблонизатор html, для подключения к vue.js"
+msgstr "Aion::Sige - html template engine for connecting to vue.js"
+
+msgid "0.0.0-prealpha"
+msgstr "0.0.0-prealpha"
+
+msgid "Файл lib/Product.pm:"
+msgstr "lib/Product.pm file:"
+
+msgid "Файл lib/Product/List.pm:"
+msgstr "File lib/Product/List.pm:"
+
+msgid "# DESCRIPTION"
+msgstr "#DESCRIPTION"
+
+msgid "Aion::Sige анализирует html в разделе \\__DATA__ или в одноименном html-файле, расположенном рядом с модулем."
+msgstr "Aion::Sige parses html in the \\__DATA__ section or in the html file of the same name located next to the module."
+
+msgid "Вычисляются значения атрибутов, заключенные в одинарные кавычки. Значения атрибутов без кавычек также рассчитываются. В них не должно быть пробелов."
+msgstr "Attribute values enclosed in single quotes are calculated. Attribute values without quotes are also calculated. There should be no spaces in them."
+
+msgid "Теги с дефисом в названии считаются классами и соответствующим образом преобразуются: `<Product::List list=list>` в `use Product::List; Product::List->new(list => $self->list)->render`."
+msgstr "Tags with a hyphen in their name are considered classes and are converted accordingly: `<Product::List list=list>` to `use Product::List; Product::List->new(list => $self->list)->render`."
+
+msgid "Срабатывает, когда роль прикреплена к классу. Компилирует код sige в код Perl, чтобы `@routine` стал методом класса."
+msgstr "Fires when a role is attached to a class. Compiles sige code into Perl code so that `@routine` becomes a class method."
+
+msgid "Компилирует шаблон (`$template`) в Perl-код и подключает его подпрограммы к пакету (`$pkg`)."
+msgstr "Compiles a template (`$template`) into Perl code and connects its routines to a package (`$pkg`)."
+
+msgid "Компилирует sige в указанном пакете."
+msgstr "Compiles sige in the specified package."
+
+msgid "Если у вас достаточно прав, он создает файл рядом с файлом $pkg-module и расширением `.pm$sige`, затем подключает этот файл с помощью `require` и удаляет его. Это сделано для обеспечения адекватной трассировки стека."
+msgstr "If you have enough permissions, it creates a file next to the $pkg-module file with a `.pm$sige` extension, then includes that file with `require` and deletes it. This is done to ensure an adequate stack trace."
+
+msgid "Если прав недостаточно, то просто выполнится `eval`."
+msgstr "If there are not enough rights, then `eval` will simply be executed."
+
+msgid "Файл lib/RequireSige.pm:"
+msgstr "File lib/RequireSige.pm:"
+
+msgid "# SIGE LANGUAGE"
+msgstr "#SIGELANGUAGE"
+
+msgid "Код шаблона находится в одноименном файле `*.html` рядом с модулем или в разделе `__DATA__`. Но не одновременно."
+msgstr "The template code is located in the `*.html` file of the same name next to the module or in the `__DATA__` section. But not at the same time."
+
+msgid "Файл lib/Ex.pm:"
+msgstr "lib/Ex.pm file:"
+
+msgid "Файл lib/Ex.html:"
+msgstr "File lib/Ex.html:"
+
+msgid "## Subroutine"
+msgstr "## Subroutine"
+
+msgid "С начала строки и символа @ начинаются методы, которые можно вызвать из пакета:"
+msgstr "The beginning of the line and the @ symbol begin the methods that can be called from the package:"
+
+msgid "Файл lib/ExHtml.pm:"
+msgstr "lib/ExHtml.pm file:"
+
+msgid "Файл lib/ExHtml.html:"
+msgstr "File lib/ExHtml.html:"
+
+msgid "## Evaluate insertions"
+msgstr "## Evaluate insertions"
+
+msgid "Выражение в `{{ }}` вычисляется."
+msgstr "The expression in `{{ }}` is evaluated."
+
+msgid "Файл lib/Ex/Insertions.pm:"
+msgstr "File lib/Ex/Insertions.pm:"
+
+msgid "## Evaluate attrs"
+msgstr "## Evaluate attributes"
+
+msgid "Атрибуты со значениями в `\"\"` считаются строкой, а атрибуты в `''` или без кавычек считаются выражением."
+msgstr "Attributes with values in `\"\"` are considered a string, and attributes in `''` or without quotes are considered an expression."
+
+msgid "Если значение атрибута — `undef`, то атрибут не рендерится."
+msgstr "If the attribute value is `undef`, then the attribute is not rendered."
+
+msgid "Файл lib/Ex/Attrs.pm:"
+msgstr "File lib/Ex/Attrs.pm:"
+
+msgid "## Attributes if, else-if and else"
+msgstr "## Attributes if, else-if and else"
+
+msgid "Файл lib/Ex/If.pm:"
+msgstr "File lib/Ex/If.pm:"
+
+msgid "## Attribute for"
+msgstr "## Attribute for"
+
+msgid "## Tags without close"
+msgstr "## Tags without close"
+
+msgid ""
+"1. Теги area, base, br, col, embed, hr, img, input, link, мета, param, source, track и wbr отображаются без закрывающего тега или косой черты.\n"
+"2. К тегам HTML добавляется закрывающий тег.\n"
+"3. Свойство `content => ...` не передается в теги perl-модуля."
+msgstr ""
+"1. The area, base, br, col, embed, hr, img, input, link, meta, param, source, track and wbr tags are displayed without a closing tag or slash.\n"
+"2. A closing tag is added to the HTML tags.\n"
+"3. The `content => ...` property is not passed to the perl module tags."
+
+msgid "Теги с `::` используют другие модули Perl."
+msgstr "Tags with `::` are used by other Perl modules."
+
+msgid "Файл lib/Hello.pm:"
+msgstr "lib/Hello.pm file:"
+
+msgid "Файл lib/Hello/World.pm:"
+msgstr "File lib/Hello/World.pm:"
+
+msgid "## Comments"
+msgstr "## Comments"
+
+msgid "HTML-комментарии (`<!-- ... -->`) удаляются из текста."
+msgstr "HTML comments (`<!-- ... -->`) are removed from the text."
+
+msgid "## Exceptions"
+msgstr "## Exceptions"
+
+msgid "# AUTHOR"
+msgstr "#AUTHOR"
+
+msgid "Yaroslav O. Kosmina <dart@cpan.org>"
+msgstr "Yaroslav O. Kosmina <dart@cpan.org>"
+
+msgid "⚖ **GPLv3**"
+msgstr "⚖ **GPLv3**"
+
+msgid "Aion::Sige is copyright (c) 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved."
+msgstr "Aion::Sige is copyright (c) 2023 by Yaroslav O. Kosmina. Rusland. All rights reserved."
+
